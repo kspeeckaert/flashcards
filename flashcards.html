@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.2.20260323 -->
+<!-- flashcards.html — version 1.3.20260323 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -495,7 +495,7 @@
   </div>
 
 </div>
-<p class="version">v1.2.20260323</p>
+<p class="version">v1.3.20260323</p>
 <script>
 // ── State ──────────────────────────────────────────────────────
 let parsedDeck  = null;   // { filename, sections: [{title, cards:[{front,back}]}] }
@@ -671,10 +671,14 @@ function renderCard() {
 }
 
 function flipCard() {
-  if (isFlipped) return;
-  isFlipped = true;
-  document.getElementById('card').classList.add('flipped');
-  setTimeout(() => document.getElementById('answer-btns').classList.add('visible'), 250);
+  isFlipped = !isFlipped;
+  document.getElementById('card').classList.toggle('flipped', isFlipped);
+  const btns = document.getElementById('answer-btns');
+  if (isFlipped) {
+    setTimeout(() => btns.classList.add('visible'), 250);
+  } else {
+    btns.classList.remove('visible');
+  }
 }
 
 function answer(correct) {
