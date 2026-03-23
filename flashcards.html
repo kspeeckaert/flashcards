@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.5.20260323 -->
+<!-- flashcards.html — version 1.8.20260323 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -90,6 +90,29 @@
 
     #file-input { display: none; }
 
+    /* ── Drop zone ────────────────────────────────────── */
+    .drop-zone {
+      width: 100%;
+      border: 2px dashed var(--ink-faint);
+      border-radius: var(--radius);
+      padding: 28px 20px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+      transition: border-color .18s var(--ease), background .18s var(--ease);
+      cursor: default;
+    }
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .drop-zone.drag-over .btn-primary {
+      opacity: .7;
+    }
+    .drop-hint {
+      font-size: 12px; color: var(--ink-faint);
+      pointer-events: none;
+    }
+
     .btn-primary {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--accent); color: #fff;
@@ -102,6 +125,19 @@
     }
     .btn-primary:active { opacity: .8; transform: scale(.97); }
     .btn-primary:disabled { opacity: .4; pointer-events: none; }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--accent);
+      border: 1.5px solid var(--accent); border-radius: 10px;
+      padding: 13px 22px;
+      font-family: var(--font-ui); font-size: 15px; font-weight: 500;
+      cursor: pointer;
+      transition: background .18s var(--ease), opacity .18s var(--ease), transform .18s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-ghost:hover  { background: var(--accent-soft); }
+    .btn-ghost:active { opacity: .8; transform: scale(.97); }
 
     .format-hint {
       margin-top: 30px;
@@ -195,8 +231,12 @@
     .start-row {
       width: 100%;
       display: flex; justify-content: space-between; align-items: center;
+      gap: 12px;
     }
-    .sel-count { font-size: 13px; color: var(--ink-soft); }
+    .sel-count {
+      font-size: 13px; color: var(--ink-soft);
+      text-align: center; flex: 1;
+    }
     .sel-count strong { color: var(--ink); }
 
     .reverse-row {
@@ -308,12 +348,12 @@
     }
     .face-text {
       font-family: var(--font-card);
-      font-size: clamp(22px, 6vw, 34px);
+      font-size: clamp(18px, 5vw, 28px);
       font-weight: 400;
+      font-style: italic;
       text-align: center; line-height: 1.35;
     }
     .face.back .face-text {
-      font-style: italic;
       font-size: clamp(18px, 5vw, 28px);
     }
 
@@ -337,6 +377,10 @@
       margin: 0.4em 0;
     }
     .face-text li { margin: 0.15em 0; }
+
+    /* Suppress the extra paragraph box when marked.parse wraps a simple
+       single-line front in <p>…</p> — keeps the display inline/centred */
+    .face-text > p:only-child { display: inline; }
 
     .tap-hint {
       margin-top: 22px; font-size: 12px; color: var(--ink-faint);
@@ -362,6 +406,20 @@
     .btn-hit  { background: var(--hit-soft);  color: var(--hit); }
     .btn-miss { background: var(--miss-soft); color: var(--miss); }
     .btn-hit:active, .btn-miss:active { opacity: .75; transform: scale(.97); }
+
+    /* ── Swipe overlay (touch feedback) ──────────────── */
+    .swipe-overlay {
+      position: absolute; inset: 0;
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-ui); font-size: 22px; font-weight: 600;
+      letter-spacing: .02em;
+      opacity: 0;
+      pointer-events: none;
+      /* No transition — must follow finger instantly */
+    }
+    .swipe-overlay.hit  { background: rgba(45,106,79,.14);  color: var(--hit); }
+    .swipe-overlay.miss { background: rgba(155,35,53,.14); color: var(--miss); }
 
     /* ── DONE ─────────────────────────────────────────── */
     #screen-done { padding-top: 56px; text-align: center; }
@@ -439,15 +497,18 @@
     <h1>Load a deck</h1>
     <p class="sub">Pick a Markdown (.md) file to get started</p>
     <input type="file" id="file-input" accept=".md,.markdown,.txt">
-    <button class="btn-primary" onclick="document.getElementById('file-input').click()">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="17 8 12 3 7 8"/>
-        <line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
-      Choose file…
-    </button>
+    <div class="drop-zone" id="drop-zone">
+      <button class="btn-primary" onclick="document.getElementById('file-input').click()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Choose file…
+      </button>
+      <span class="drop-hint">or drag &amp; drop a .md file here</span>
+    </div>
     <div class="format-hint">
       <h3>Expected format</h3>
       <pre><span class="md-h1"># Chapter 1: Greetings</span>
@@ -479,6 +540,13 @@
       <span class="rev-label">Reverse cards <span class="rev-hint">(answer → question)</span></span>
     </label>
     <div class="start-row">
+      <button class="btn-ghost" onclick="showScreen('screen-load')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Back
+      </button>
       <span class="sel-count" id="sel-count"></span>
       <button class="btn-primary" id="start-btn" onclick="startStudy(null)">Study →</button>
     </div>
@@ -521,6 +589,7 @@
         <div class="face back">
           <span class="face-label">Answer</span>
           <div class="face-text" id="card-back"></div>
+          <div class="swipe-overlay" id="swipe-overlay"></div>
         </div>
       </div>
     </div>
@@ -557,7 +626,7 @@
   </div>
 
 </div>
-<p class="version">v1.5.20260323</p>
+<p class="version">v1.8.20260323</p>
 
 <!-- Step 2: Markdown rendering libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
@@ -591,14 +660,19 @@ document.getElementById('reverse-toggle').addEventListener('click', () => {
 });
 
 // ── File loading ───────────────────────────────────────────────
-document.getElementById('file-input').addEventListener('change', function (e) {
-  const file = e.target.files[0];
+const VALID_EXTS = ['.md', '.markdown', '.txt'];
+
+function loadFile(file) {
   if (!file) return;
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!VALID_EXTS.includes(ext)) {
+    alert(`Unsupported file type: "${file.name}"\n\nPlease drop a .md, .markdown, or .txt file.`);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = ev => {
     const deck = parseMD(ev.target.result, file.name);
     if (!deck.sections.length) {
-      // Step 6: clear stale deck before alerting
       parsedDeck = null;
       alert('No cards found.\n\nMake sure your file uses\n  # Heading  — for sections\n  ## Term    — for card fronts\nfollowed by the answer on the next line.');
       return;
@@ -608,8 +682,40 @@ document.getElementById('file-input').addEventListener('change', function (e) {
     showScreen('screen-select');
   };
   reader.readAsText(file);
+}
+
+document.getElementById('file-input').addEventListener('change', function (e) {
+  loadFile(e.target.files[0]);
   e.target.value = '';
 });
+
+// ── Drag-and-drop ──────────────────────────────────────────────
+(function () {
+  const zone = document.getElementById('drop-zone');
+
+  // Prevent browser default (open file) on the whole page
+  ['dragover', 'drop'].forEach(evt =>
+    document.addEventListener(evt, e => e.preventDefault())
+  );
+
+  zone.addEventListener('dragenter', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', e => {
+    // Only remove highlight when leaving the zone itself, not a child element
+    if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    loadFile(e.dataTransfer.files[0]);
+  });
+})();
 
 // ── Markdown parser ────────────────────────────────────────────
 function parseMD(text, filename) {
@@ -650,14 +756,12 @@ function parseMD(text, filename) {
   return { filename, sections };
 }
 
-// ── Step 2: Markdown content helper ───────────────────────────
-// Front uses inline-only parsing (no wrapping <p>); back uses full block parsing.
-function setCardContent(id, text, inline) {
-  const el  = document.getElementById(id);
-  const raw = inline
-    ? marked.parseInline(text)
-    : marked.parse(text);
-  el.innerHTML = DOMPurify.sanitize(raw);
+// ── Markdown content helper ────────────────────────────────────
+// Always use full block parsing so lists, bold etc. render correctly on
+// both faces. A CSS rule suppresses the wrapping <p> on simple single-line fronts.
+function setCardContent(id, text) {
+  const el = document.getElementById(id);
+  el.innerHTML = DOMPurify.sanitize(marked.parse(text));
 }
 
 // ── Section select screen ──────────────────────────────────────
@@ -759,7 +863,7 @@ function renderCard() {
   document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
 
   // Front is hidden while card is flipping back — safe to update immediately
-  setCardContent('card-front', currentCard.front, true);
+  setCardContent('card-front', currentCard.front);
 
   const card       = document.getElementById('card');
   const wasFlipped = card.classList.contains('flipped');
@@ -772,10 +876,10 @@ function renderCard() {
     // Defer back-text update until the flip-back animation completes so the
     // outgoing answer is never visible on the incoming card's back face.
     setTimeout(() => {
-      setCardContent('card-back', currentCard.back, false);
+      setCardContent('card-back', currentCard.back);
     }, FLIP_MS);
   } else {
-    setCardContent('card-back', currentCard.back, false);
+    setCardContent('card-back', currentCard.back);
   }
 }
 
@@ -842,32 +946,110 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── Step 5: Swipe gestures (mobile) ───────────────────────────
-// Short tap  → flip (handled by existing onclick)
-// Swipe right (when flipped) → Got it
-// Swipe left  (when flipped) → Miss
+// ── Swipe gestures with visual feedback (mobile) ──────────────
+// Tap          → flip (existing onclick)
+// Swipe right  (when flipped) → Got it  ✓
+// Swipe left   (when flipped) → Miss    ✗
+//
+// During drag: the card scene translates with the finger and tilts slightly.
+// A coloured overlay fades in to signal the direction.
+// On release:  if threshold met → card flies off then answer() is called.
+//              if not            → card springs back to centre.
 (function () {
-  const cardEl = document.getElementById('card');
-  let startX = 0, startY = 0;
+  const scene   = document.getElementById('card').parentElement; // .card-scene
+  const overlay = document.getElementById('swipe-overlay');
 
-  cardEl.addEventListener('touchstart', function (e) {
-    startX = e.changedTouches[0].clientX;
-    startY = e.changedTouches[0].clientY;
+  const THRESHOLD  = 80;   // px before a swipe is committed
+  const MAX_TILT   = 12;   // degrees of rotateZ at full threshold
+  const FLY_PX     = 420;  // how far off-screen the card travels on commit
+  const FLY_MS     = 260;  // duration of the fly-off animation
+
+  let startX = 0, startY = 0;
+  let dragging = false;
+
+  function resetOverlay() {
+    overlay.style.opacity = '0';
+    overlay.className = 'swipe-overlay';
+    overlay.textContent = '';
+  }
+
+  function resetScene(animated) {
+    if (animated) {
+      scene.style.transition = `transform ${FLIP_MS}ms var(--ease)`;
+    } else {
+      scene.style.transition = 'none';
+    }
+    scene.style.transform = '';
+    setTimeout(() => { scene.style.transition = ''; }, animated ? FLIP_MS : 0);
+  }
+
+  document.getElementById('card').addEventListener('touchstart', function (e) {
+    startX   = e.changedTouches[0].clientX;
+    startY   = e.changedTouches[0].clientY;
+    dragging = false;
   }, { passive: true });
 
-  cardEl.addEventListener('touchend', function (e) {
+  document.getElementById('card').addEventListener('touchmove', function (e) {
+    if (!isFlipped) return;
     const dx    = e.changedTouches[0].clientX - startX;
     const dy    = e.changedTouches[0].clientY - startY;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    // Must be a clear horizontal swipe (>40 px, dominates vertical movement)
-    // and card must already be showing the answer
-    if (absDx > 40 && absDx > absDy * 1.5 && isFlipped) {
-      e.preventDefault(); // prevent the subsequent click / flip toggle
-      answer(dx > 0);     // swipe right = Got it, swipe left = Miss
+    // Only start tracking once the move is clearly horizontal
+    if (!dragging && absDx < 8) return;
+    if (!dragging && absDy > absDx) return;  // vertical scroll — ignore
+    dragging = true;
+
+    e.preventDefault(); // stop page scroll once we own the gesture
+
+    // Translate scene with finger
+    const tilt = Math.min(absDx / THRESHOLD, 1) * MAX_TILT * Math.sign(dx);
+    scene.style.transition = 'none';
+    scene.style.transform  = `translateX(${dx}px) rotateZ(${tilt}deg)`;
+
+    // Fade overlay in proportion to drag distance (full at threshold)
+    const ratio = Math.min(absDx / THRESHOLD, 1);
+    const isHit = dx > 0;
+    overlay.className   = 'swipe-overlay ' + (isHit ? 'hit' : 'miss');
+    overlay.textContent = isHit ? '✓  Got it' : '✗  Miss';
+    overlay.style.opacity = String(ratio);
+  }, { passive: false });
+
+  document.getElementById('card').addEventListener('touchend', function (e) {
+    if (!isFlipped || !dragging) {
+      dragging = false;
+      resetOverlay();
+      return;
     }
-    // All other touch endings fall through to the onclick flip handler
+    dragging = false;
+
+    const dx    = e.changedTouches[0].clientX - startX;
+    const dy    = e.changedTouches[0].clientY - startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const committed = absDx >= THRESHOLD && absDx > absDy * 1.5;
+
+    if (committed) {
+      // Fly the card off-screen in the swipe direction, then record the answer
+      e.preventDefault();
+      const dir = Math.sign(dx);
+      scene.style.transition = `transform ${FLY_MS}ms var(--ease), opacity ${FLY_MS}ms ease`;
+      scene.style.transform  = `translateX(${dir * FLY_PX}px) rotateZ(${dir * MAX_TILT}deg)`;
+      scene.style.opacity    = '0';
+
+      setTimeout(() => {
+        resetOverlay();
+        scene.style.transition = 'none';
+        scene.style.transform  = '';
+        scene.style.opacity    = '';
+        answer(dx > 0);  // right = Got it, left = Miss
+      }, FLY_MS);
+    } else {
+      // Spring back to centre
+      resetOverlay();
+      resetScene(true);
+    }
   });
 })();
 
