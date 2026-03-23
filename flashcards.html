@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.4.20260323 -->
+<!-- flashcards.html — version 1.5.20260323 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Flashcards</title>
+  <!-- Step 1: preconnect + font-display swap -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -313,6 +316,28 @@
       font-style: italic;
       font-size: clamp(18px, 5vw, 28px);
     }
+
+    /* Step 2: Markdown content styles inside card faces */
+    .face-text p { margin: 0.4em 0; }
+    .face-text p:first-child { margin-top: 0; }
+    .face-text p:last-child  { margin-bottom: 0; }
+    .face-text strong { font-weight: 600; font-style: normal; }
+    .face-text em     { font-style: italic; }
+    .face-text code {
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size: 0.82em;
+      background: var(--accent-soft);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      font-style: normal;
+    }
+    .face-text ul, .face-text ol {
+      text-align: left;
+      padding-left: 1.4em;
+      margin: 0.4em 0;
+    }
+    .face-text li { margin: 0.15em 0; }
+
     .tap-hint {
       margin-top: 22px; font-size: 12px; color: var(--ink-faint);
       display: flex; align-items: center; gap: 5px;
@@ -463,7 +488,8 @@
   <div id="screen-study" class="screen">
     <div class="study-topbar">
       <p class="wordmark" style="margin:0">Flashcards</p>
-      <button class="btn-exit" onclick="showScreen('screen-select')" title="Exit to section select">
+      <!-- Step 4: exit with confirmation guard -->
+      <button class="btn-exit" onclick="exitStudy()" title="Exit to section select">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"/>
@@ -531,7 +557,12 @@
   </div>
 
 </div>
-<p class="version">v1.4.20260323</p>
+<p class="version">v1.5.20260323</p>
+
+<!-- Step 2: Markdown rendering libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+
 <script>
 // ── State ──────────────────────────────────────────────────────
 let parsedDeck  = null;   // { filename, sections: [{title, cards:[{front,back}]}] }
@@ -542,8 +573,9 @@ let cardIndex   = 0;
 let hits        = 0;
 let misses      = 0;
 let isFlipped   = false;
-
 let isReversed  = false;
+
+const FLIP_MS   = 420;    // must match .card transition duration
 
 // ── Screens ────────────────────────────────────────────────────
 function showScreen(id) {
@@ -564,11 +596,14 @@ document.getElementById('file-input').addEventListener('change', function (e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    parsedDeck = parseMD(ev.target.result, file.name);
-    if (!parsedDeck.sections.length) {
+    const deck = parseMD(ev.target.result, file.name);
+    if (!deck.sections.length) {
+      // Step 6: clear stale deck before alerting
+      parsedDeck = null;
       alert('No cards found.\n\nMake sure your file uses\n  # Heading  — for sections\n  ## Term    — for card fronts\nfollowed by the answer on the next line.');
       return;
     }
+    parsedDeck = deck;
     buildSelectScreen();
     showScreen('screen-select');
   };
@@ -613,6 +648,16 @@ function parseMD(text, filename) {
   saveSection();
 
   return { filename, sections };
+}
+
+// ── Step 2: Markdown content helper ───────────────────────────
+// Front uses inline-only parsing (no wrapping <p>); back uses full block parsing.
+function setCardContent(id, text, inline) {
+  const el  = document.getElementById(id);
+  const raw = inline
+    ? marked.parseInline(text)
+    : marked.parse(text);
+  el.innerHTML = DOMPurify.sanitize(raw);
 }
 
 // ── Section select screen ──────────────────────────────────────
@@ -703,20 +748,35 @@ function startStudy(cardsOverride) {
   renderCard();
 }
 
+// ── Step 7: deferred back-text to prevent flash during flip-back ──
 function renderCard() {
-  const total = activeDeck.length;
-  const done  = cardIndex;
+  const total       = activeDeck.length;
+  const done        = cardIndex;
+  const currentCard = activeDeck[cardIndex]; // capture index now
 
   document.getElementById('prog-fill').style.width  = (done / total * 100) + '%';
   document.getElementById('prog-text').textContent  = `${done + 1} / ${total}`;
   document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
-  document.getElementById('card-front').textContent = activeDeck[cardIndex].front;
-  document.getElementById('card-back').textContent  = activeDeck[cardIndex].back;
 
-  const card = document.getElementById('card');
+  // Front is hidden while card is flipping back — safe to update immediately
+  setCardContent('card-front', currentCard.front, true);
+
+  const card       = document.getElementById('card');
+  const wasFlipped = card.classList.contains('flipped');
+
   card.classList.remove('flipped');
   isFlipped = false;
   document.getElementById('answer-btns').classList.remove('visible');
+
+  if (wasFlipped) {
+    // Defer back-text update until the flip-back animation completes so the
+    // outgoing answer is never visible on the incoming card's back face.
+    setTimeout(() => {
+      setCardContent('card-back', currentCard.back, false);
+    }, FLIP_MS);
+  } else {
+    setCardContent('card-back', currentCard.back, false);
+  }
 }
 
 function flipCard() {
@@ -739,6 +799,12 @@ function answer(correct) {
   } else {
     renderCard();
   }
+}
+
+// ── Step 4: exit with confirmation ────────────────────────────
+function exitStudy() {
+  if (cardIndex > 0 && !confirm('Exit this session? Your progress will be lost.')) return;
+  showScreen('screen-select');
 }
 
 // ── Done ───────────────────────────────────────────────────────
@@ -775,6 +841,35 @@ function shuffle(arr) {
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// ── Step 5: Swipe gestures (mobile) ───────────────────────────
+// Short tap  → flip (handled by existing onclick)
+// Swipe right (when flipped) → Got it
+// Swipe left  (when flipped) → Miss
+(function () {
+  const cardEl = document.getElementById('card');
+  let startX = 0, startY = 0;
+
+  cardEl.addEventListener('touchstart', function (e) {
+    startX = e.changedTouches[0].clientX;
+    startY = e.changedTouches[0].clientY;
+  }, { passive: true });
+
+  cardEl.addEventListener('touchend', function (e) {
+    const dx    = e.changedTouches[0].clientX - startX;
+    const dy    = e.changedTouches[0].clientY - startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Must be a clear horizontal swipe (>40 px, dominates vertical movement)
+    // and card must already be showing the answer
+    if (absDx > 40 && absDx > absDy * 1.5 && isFlipped) {
+      e.preventDefault(); // prevent the subsequent click / flip toggle
+      answer(dx > 0);     // swipe right = Got it, swipe left = Miss
+    }
+    // All other touch endings fall through to the onclick flip handler
+  });
+})();
 
 // ── Keyboard shortcuts (desktop) ───────────────────────────────
 document.addEventListener('keydown', function (e) {
