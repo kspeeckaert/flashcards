@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<!-- flashcards.html — version 1.2.20260323 -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Flashcards</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f7f4ee;
+      --surface:     #ffffff;
+      --ink:         #1e1c18;
+      --ink-soft:    #6b6760;
+      --ink-faint:   #c4bfb4;
+      --accent:      #3d5a80;
+      --accent-soft: #e8edf4;
+      --hit:         #2d6a4f;
+      --hit-soft:    #e8f4ef;
+      --miss:        #9b2335;
+      --miss-soft:   #faeaec;
+      --radius:      14px;
+      --shadow:      0 2px 16px rgba(30,28,24,.08), 0 1px 3px rgba(30,28,24,.06);
+      --shadow-lg:   0 8px 40px rgba(30,28,24,.13), 0 2px 8px rgba(30,28,24,.08);
+      --font-ui:     'DM Sans', system-ui, sans-serif;
+      --font-card:   'Lora', Georgia, serif;
+      --ease:        cubic-bezier(.4,0,.2,1);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #app {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 56px;
+    }
+
+    .screen { display: none; width: 100%; max-width: 540px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+    .wordmark {
+      font-family: var(--font-card);
+      font-size: 13px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 44px;
+      margin-top: 6px;
+    }
+
+    /* ── LOAD ─────────────────────────────────────────── */
+    #screen-load {
+      padding-top: 52px;
+      text-align: center;
+    }
+
+    .load-icon {
+      width: 72px; height: 72px;
+      background: var(--accent-soft);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px;
+    }
+    .load-icon svg { width: 30px; height: 30px; color: var(--accent); }
+
+    #screen-load h1 {
+      font-family: var(--font-card);
+      font-size: 26px; font-weight: 600;
+      margin-bottom: 8px;
+    }
+    #screen-load .sub {
+      color: var(--ink-soft); font-size: 14px;
+      margin-bottom: 30px;
+    }
+
+    #file-input { display: none; }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 10px;
+      padding: 13px 26px;
+      font-family: var(--font-ui); font-size: 15px; font-weight: 500;
+      cursor: pointer;
+      transition: opacity .18s var(--ease), transform .18s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active { opacity: .8; transform: scale(.97); }
+    .btn-primary:disabled { opacity: .4; pointer-events: none; }
+
+    .format-hint {
+      margin-top: 30px;
+      background: var(--surface);
+      border: 1px solid var(--ink-faint);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      text-align: left;
+      width: 100%;
+    }
+    .format-hint h3 {
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--ink-soft); margin-bottom: 10px;
+    }
+    .format-hint pre {
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size: 12px; line-height: 1.75;
+    }
+    .md-h1  { color: var(--accent); font-weight: bold; }
+    .md-h2  { color: var(--hit); }
+    .md-body { color: var(--ink-soft); }
+
+    /* ── SELECT ───────────────────────────────────────── */
+    #screen-select { padding-top: 16px; }
+
+    .sec-header {
+      width: 100%;
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .sec-header h2 {
+      font-family: var(--font-card);
+      font-size: 21px; font-weight: 600;
+    }
+
+    .btn-text {
+      background: none; border: none;
+      color: var(--accent);
+      font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+      cursor: pointer; padding: 4px 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-text:active { opacity: .6; }
+
+    .deck-name {
+      width: 100%; font-size: 13px; color: var(--ink-soft);
+      margin-bottom: 18px;
+    }
+
+    .section-list {
+      width: 100%;
+      display: flex; flex-direction: column; gap: 8px;
+      margin-bottom: 26px;
+    }
+
+    .section-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface);
+      border: 1.5px solid var(--ink-faint);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color .18s var(--ease), background .18s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .section-item.checked {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .section-item input { display: none; }
+
+    .chk {
+      width: 20px; height: 20px; flex-shrink: 0;
+      border: 2px solid var(--ink-faint);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .18s, background .18s;
+    }
+    .section-item.checked .chk {
+      background: var(--accent); border-color: var(--accent);
+    }
+    .chk svg { display: none; width: 11px; height: 11px; color: #fff; }
+    .section-item.checked .chk svg { display: block; }
+
+    .sec-label { flex: 1; }
+    .sec-label .name  { font-size: 15px; }
+    .sec-label .count { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+
+    .start-row {
+      width: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .sel-count { font-size: 13px; color: var(--ink-soft); }
+    .sel-count strong { color: var(--ink); }
+
+    /* ── STUDY ────────────────────────────────────────── */
+    #screen-study { padding-top: 10px; }
+
+    .study-topbar {
+      width: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 44px;
+    }
+
+    .btn-exit {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: none; border: 1.5px solid var(--ink-faint);
+      border-radius: 8px;
+      padding: 5px 11px;
+      font-family: var(--font-ui); font-size: 12px; font-weight: 500;
+      color: var(--ink-soft);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-exit:hover  { border-color: var(--ink-soft); color: var(--ink); }
+    .btn-exit:active { opacity: .7; }
+
+    .prog-wrap {
+      width: 100%; height: 4px;
+      background: var(--ink-faint);
+      border-radius: 99px; overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .prog-fill {
+      height: 100%; background: var(--accent);
+      border-radius: 99px;
+      transition: width .4s var(--ease);
+    }
+    .prog-labels {
+      width: 100%;
+      display: flex; justify-content: space-between;
+      font-size: 12px; color: var(--ink-soft);
+      margin-bottom: 26px;
+    }
+
+    /* flip card */
+    .card-scene {
+      width: 100%;
+      perspective: 900px;
+      margin-bottom: 20px;
+    }
+    .card {
+      width: 100%; min-height: 252px;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform .42s var(--ease);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card.flipped { transform: rotateY(180deg); }
+
+    .face {
+      position: absolute; inset: 0;
+      background: var(--surface);
+      border-radius: 18px;
+      box-shadow: var(--shadow-lg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 36px 30px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .face.back { transform: rotateY(180deg); }
+
+    .face-label {
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--ink-faint); margin-bottom: 14px;
+    }
+    .face-text {
+      font-family: var(--font-card);
+      font-size: clamp(22px, 6vw, 34px);
+      font-weight: 400;
+      text-align: center; line-height: 1.35;
+    }
+    .face.back .face-text {
+      font-style: italic;
+      font-size: clamp(18px, 5vw, 28px);
+    }
+    .tap-hint {
+      margin-top: 22px; font-size: 12px; color: var(--ink-faint);
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    .answer-btns {
+      width: 100%; display: flex; gap: 12px;
+      opacity: 0; pointer-events: none;
+      transform: translateY(10px);
+      transition: opacity .22s ease, transform .22s ease;
+    }
+    .answer-btns.visible { opacity: 1; pointer-events: all; transform: translateY(0); }
+
+    .btn-hit, .btn-miss {
+      flex: 1; padding: 15px;
+      border: none; border-radius: 12px;
+      font-family: var(--font-ui); font-size: 15px; font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s, transform .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-hit  { background: var(--hit-soft);  color: var(--hit); }
+    .btn-miss { background: var(--miss-soft); color: var(--miss); }
+    .btn-hit:active, .btn-miss:active { opacity: .75; transform: scale(.97); }
+
+    /* ── DONE ─────────────────────────────────────────── */
+    #screen-done { padding-top: 56px; text-align: center; }
+
+    .done-emoji {
+      font-size: 52px; margin-bottom: 20px; line-height: 1;
+    }
+    #screen-done h2 {
+      font-family: var(--font-card);
+      font-size: 26px; font-weight: 600;
+      margin-bottom: 6px;
+    }
+    #screen-done .sub {
+      color: var(--ink-soft); font-size: 14px;
+      margin-bottom: 32px;
+    }
+
+    .score-grid {
+      width: 100%; display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 30px;
+    }
+    .score-cell {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px 16px;
+    }
+    .score-cell .num {
+      font-family: var(--font-card);
+      font-size: 38px; font-weight: 600; line-height: 1;
+    }
+    .score-cell .lbl { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+    .score-cell.hit .num  { color: var(--hit); }
+    .score-cell.miss .num { color: var(--miss); }
+
+    .done-actions {
+      width: 100%; display: flex; flex-direction: column; gap: 10px;
+    }
+    .btn-secondary {
+      width: 100%; padding: 13px;
+      background: var(--surface);
+      border: 1.5px solid var(--ink-faint);
+      border-radius: 10px;
+      font-family: var(--font-ui); font-size: 15px; color: var(--ink);
+      cursor: pointer;
+      transition: background .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-secondary:active { background: var(--bg); }
+
+    .version {
+      position: fixed; bottom: 14px; left: 0; right: 0;
+      text-align: center;
+      font-size: 11px; color: var(--ink-faint);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- LOAD -->
+  <div id="screen-load" class="screen active">
+    <p class="wordmark">Flashcards</p>
+    <div class="load-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9"  y1="15" x2="15" y2="15"/>
+      </svg>
+    </div>
+    <h1>Load a deck</h1>
+    <p class="sub">Pick a Markdown (.md) file to get started</p>
+    <input type="file" id="file-input" accept=".md,.markdown,.txt">
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Choose file…
+    </button>
+    <div class="format-hint">
+      <h3>Expected format</h3>
+      <pre><span class="md-h1"># Chapter 1: Greetings</span>
+
+<span class="md-h2">## こんにちは</span>
+<span class="md-body">hello</span>
+
+<span class="md-h2">## さようなら</span>
+<span class="md-body">goodbye</span>
+
+<span class="md-h1"># Chapter 2: Food &amp; Drink</span>
+
+<span class="md-h2">## 食べる</span>
+<span class="md-body">to eat</span></pre>
+    </div>
+  </div>
+
+  <!-- SELECT -->
+  <div id="screen-select" class="screen">
+    <p class="wordmark">Flashcards</p>
+    <div class="sec-header">
+      <h2>Choose sections</h2>
+      <button class="btn-text" id="toggle-all-btn" onclick="toggleAll()">Deselect all</button>
+    </div>
+    <p class="deck-name" id="deck-name"></p>
+    <div class="section-list" id="section-list"></div>
+    <div class="start-row">
+      <span class="sel-count" id="sel-count"></span>
+      <button class="btn-primary" id="start-btn" onclick="startStudy(null)">Study →</button>
+    </div>
+  </div>
+
+  <!-- STUDY -->
+  <div id="screen-study" class="screen">
+    <div class="study-topbar">
+      <p class="wordmark" style="margin:0">Flashcards</p>
+      <button class="btn-exit" onclick="showScreen('screen-select')" title="Exit to section select">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
+        Exit
+      </button>
+    </div>
+    <div class="prog-wrap">
+      <div class="prog-fill" id="prog-fill"></div>
+    </div>
+    <div class="prog-labels">
+      <span id="prog-text"></span>
+      <span id="score-live"></span>
+    </div>
+    <div class="card-scene">
+      <div class="card" id="card" onclick="flipCard()">
+        <div class="face front">
+          <span class="face-label">Front</span>
+          <div class="face-text" id="card-front"></div>
+          <div class="tap-hint">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 13l5 5 5-5M7 6l5 5 5-5"/>
+            </svg>
+            Tap to reveal
+          </div>
+        </div>
+        <div class="face back">
+          <span class="face-label">Answer</span>
+          <div class="face-text" id="card-back"></div>
+        </div>
+      </div>
+    </div>
+    <div class="answer-btns" id="answer-btns">
+      <button class="btn-miss" onclick="answer(false)">✗  Miss</button>
+      <button class="btn-hit"  onclick="answer(true)">✓  Got it</button>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div id="screen-done" class="screen">    <p class="wordmark">Flashcards</p>
+    <div class="done-emoji" id="done-emoji"></div>
+    <h2 id="done-heading"></h2>
+    <p class="sub" id="done-sub"></p>
+    <div class="score-grid">
+      <div class="score-cell hit">
+        <div class="num" id="done-hit"></div>
+        <div class="lbl">Got it</div>
+      </div>
+      <div class="score-cell miss">
+        <div class="num" id="done-miss"></div>
+        <div class="lbl">Missed</div>
+      </div>
+    </div>
+    <div class="done-actions">
+      <button class="btn-primary" style="width:100%;justify-content:center"
+              onclick="startStudy(lastDeck.slice())">Study again</button>
+      <button class="btn-secondary" id="btn-missed" onclick="startStudy(missedCards.slice())">
+        Study missed cards
+      </button>
+      <button class="btn-secondary" onclick="showScreen('screen-select')">Change sections</button>
+      <button class="btn-secondary" onclick="showScreen('screen-load')">Load new deck</button>
+    </div>
+  </div>
+
+</div>
+<p class="version">v1.2.20260323</p>
+<script>
+// ── State ──────────────────────────────────────────────────────
+let parsedDeck  = null;   // { filename, sections: [{title, cards:[{front,back}]}] }
+let activeDeck  = [];     // cards for current session (shuffled)
+let lastDeck    = [];     // copy of activeDeck for "study again"
+let missedCards = [];
+let cardIndex   = 0;
+let hits        = 0;
+let misses      = 0;
+let isFlipped   = false;
+
+// ── Screens ────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ── File loading ───────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    parsedDeck = parseMD(ev.target.result, file.name);
+    if (!parsedDeck.sections.length) {
+      alert('No cards found.\n\nMake sure your file uses\n  # Heading  — for sections\n  ## Term    — for card fronts\nfollowed by the answer on the next line.');
+      return;
+    }
+    buildSelectScreen();
+    showScreen('screen-select');
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ── Markdown parser ────────────────────────────────────────────
+function parseMD(text, filename) {
+  const lines    = text.split('\n');
+  const sections = [];
+  let section    = null;
+  let card       = null;
+  let backBuf    = [];
+
+  function saveCard() {
+    if (card && section) {
+      const back = backBuf.join('\n').trim();
+      if (back) section.cards.push({ front: card, back });
+    }
+    card = null; backBuf = [];
+  }
+
+  function saveSection() {
+    saveCard();
+    if (section && section.cards.length) sections.push(section);
+    section = null;
+  }
+
+  for (const line of lines) {
+    if (line.startsWith('# ')) {
+      saveSection();
+      section = { title: line.slice(2).trim(), cards: [] };
+    } else if (line.startsWith('## ')) {
+      saveCard();
+      if (!section) section = { title: 'Cards', cards: [] };
+      card = line.slice(3).trim();
+    } else if (card !== null) {
+      backBuf.push(line.trimEnd());
+    }
+  }
+  saveSection();
+
+  return { filename, sections };
+}
+
+// ── Section select screen ──────────────────────────────────────
+function buildSelectScreen() {
+  document.getElementById('deck-name').textContent = parsedDeck.filename;
+  const list = document.getElementById('section-list');
+  list.innerHTML = '';
+
+  parsedDeck.sections.forEach((sec, i) => {
+    const el = document.createElement('label');
+    el.className = 'section-item checked';
+    el.dataset.idx = i;
+    el.innerHTML = `
+      <input type="checkbox" checked>
+      <div class="chk">
+        <svg viewBox="0 0 11 9" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4.5 4 7.5 10 1"/>
+        </svg>
+      </div>
+      <div class="sec-label">
+        <div class="name">${esc(sec.title)}</div>
+        <div class="count">${sec.cards.length} card${sec.cards.length !== 1 ? 's' : ''}</div>
+      </div>`;
+    el.addEventListener('click', () => toggleItem(el));
+    list.appendChild(el);
+  });
+
+  refreshCount();
+}
+
+function toggleItem(el) {
+  const cb = el.querySelector('input');
+  cb.checked = !cb.checked;
+  el.classList.toggle('checked', cb.checked);
+  refreshCount();
+}
+
+function toggleAll() {
+  const items  = [...document.querySelectorAll('.section-item')];
+  const allOn  = items.every(i => i.querySelector('input').checked);
+  items.forEach(el => {
+    el.querySelector('input').checked = !allOn;
+    el.classList.toggle('checked', !allOn);
+  });
+  refreshCount();
+}
+
+function refreshCount() {
+  const items   = [...document.querySelectorAll('.section-item')];
+  const checked = items.filter(i => i.querySelector('input').checked);
+  const total   = checked.reduce((n, el) =>
+    n + parsedDeck.sections[+el.dataset.idx].cards.length, 0);
+  const allOn   = checked.length === items.length;
+
+  document.getElementById('toggle-all-btn').textContent = allOn ? 'Deselect all' : 'Select all';
+  document.getElementById('start-btn').disabled = total === 0;
+  document.getElementById('sel-count').innerHTML =
+    `<strong>${total}</strong> card${total !== 1 ? 's' : ''} selected`;
+}
+
+// ── Study ──────────────────────────────────────────────────────
+function startStudy(cardsOverride) {
+  if (cardsOverride) {
+    activeDeck = shuffle([...cardsOverride]);
+  } else {
+    const items   = [...document.querySelectorAll('.section-item')];
+    const checked = items.filter(i => i.querySelector('input').checked);
+    if (!checked.length) return;
+    const cards = checked.flatMap(el => parsedDeck.sections[+el.dataset.idx].cards);
+    activeDeck  = shuffle([...cards]);
+  }
+
+  if (!activeDeck.length) return;
+
+  lastDeck    = [...activeDeck];
+  missedCards = [];
+  cardIndex   = 0;
+  hits        = 0;
+  misses      = 0;
+
+  showScreen('screen-study');
+  renderCard();
+}
+
+function renderCard() {
+  const total = activeDeck.length;
+  const done  = cardIndex;
+
+  document.getElementById('prog-fill').style.width  = (done / total * 100) + '%';
+  document.getElementById('prog-text').textContent  = `${done + 1} / ${total}`;
+  document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
+  document.getElementById('card-front').textContent = activeDeck[cardIndex].front;
+  document.getElementById('card-back').textContent  = activeDeck[cardIndex].back;
+
+  const card = document.getElementById('card');
+  card.classList.remove('flipped');
+  isFlipped = false;
+  document.getElementById('answer-btns').classList.remove('visible');
+}
+
+function flipCard() {
+  if (isFlipped) return;
+  isFlipped = true;
+  document.getElementById('card').classList.add('flipped');
+  setTimeout(() => document.getElementById('answer-btns').classList.add('visible'), 250);
+}
+
+function answer(correct) {
+  if (!correct) missedCards.push(activeDeck[cardIndex]);
+  if (correct) hits++; else misses++;
+  cardIndex++;
+  if (cardIndex >= activeDeck.length) {
+    showDone();
+  } else {
+    renderCard();
+  }
+}
+
+// ── Done ───────────────────────────────────────────────────────
+function showDone() {
+  const total = activeDeck.length;
+  const pct   = Math.round(hits / total * 100);
+  let emoji, heading;
+
+  if (pct === 100)    { emoji = '🎉'; heading = 'Perfect round!'; }
+  else if (pct >= 80) { emoji = '⭐️'; heading = 'Great work!'; }
+  else if (pct >= 50) { emoji = '💪'; heading = 'Keep going!'; }
+  else                { emoji = '📖'; heading = 'More practice needed'; }
+
+  document.getElementById('done-emoji').textContent   = emoji;
+  document.getElementById('done-heading').textContent = heading;
+  document.getElementById('done-sub').textContent     =
+    `${pct}% correct · ${total} card${total !== 1 ? 's' : ''}`;
+  document.getElementById('done-hit').textContent     = hits;
+  document.getElementById('done-miss').textContent    = misses;
+  document.getElementById('btn-missed').style.display = misses > 0 ? '' : 'none';
+
+  showScreen('screen-done');
+}
+
+// ── Utilities ──────────────────────────────────────────────────
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Keyboard shortcuts (desktop) ───────────────────────────────
+document.addEventListener('keydown', function (e) {
+  const studying = document.getElementById('screen-study').classList.contains('active');
+  if (!studying) return;
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    flipCard();
+  } else if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    if (isFlipped) answer(true);
+  } else if (e.code === 'ArrowLeft') {
+    e.preventDefault();
+    if (isFlipped) answer(false);
+  }
+});
+</script>
+</body>
+</html>
