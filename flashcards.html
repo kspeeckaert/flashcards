@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.8.20260323 -->
+<!-- flashcards.html — version 1.14.20260323 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -311,6 +311,9 @@
       font-size: 12px; color: var(--ink-soft);
       margin-bottom: 26px;
     }
+    .prog-labels span        { flex: 1; }
+    .prog-labels span:nth-child(2) { text-align: center; }
+    .prog-labels span:last-child   { text-align: right; }
 
     /* flip card */
     .card-scene {
@@ -334,8 +337,8 @@
       border-radius: 18px;
       box-shadow: var(--shadow-lg);
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 36px 30px;
+      align-items: center; justify-content: flex-start;
+      padding: 24px 30px;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
     }
@@ -345,6 +348,7 @@
       font-size: 11px; font-weight: 500;
       text-transform: uppercase; letter-spacing: .1em;
       color: var(--ink-faint); margin-bottom: 14px;
+      flex-shrink: 0;
     }
     .face-text {
       font-family: var(--font-card);
@@ -352,6 +356,10 @@
       font-weight: 400;
       font-style: italic;
       text-align: center; line-height: 1.35;
+      width: 100%;
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
     }
     .face.back .face-text {
       font-size: clamp(18px, 5vw, 28px);
@@ -376,6 +384,7 @@
       padding-left: 1.4em;
       margin: 0.4em 0;
     }
+    .face-text ul { list-style-type: '–  '; }
     .face-text li { margin: 0.15em 0; }
 
     /* Suppress the extra paragraph box when marked.parse wraps a simple
@@ -383,8 +392,9 @@
     .face-text > p:only-child { display: inline; }
 
     .tap-hint {
-      margin-top: 22px; font-size: 12px; color: var(--ink-faint);
+      font-size: 12px; color: var(--ink-faint);
       display: flex; align-items: center; gap: 5px;
+      flex-shrink: 0;
     }
 
     .answer-btns {
@@ -411,15 +421,23 @@
     .swipe-overlay {
       position: absolute; inset: 0;
       border-radius: 18px;
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-ui); font-size: 22px; font-weight: 600;
-      letter-spacing: .02em;
+      display: flex;
+      align-items: flex-start;        /* pin to top, level with ANSWER label */
+      padding: 36px 30px;
+      font-family: var(--font-ui); font-size: 13px; font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
       opacity: 0;
       pointer-events: none;
-      /* No transition — must follow finger instantly */
     }
-    .swipe-overlay.hit  { background: rgba(45,106,79,.14);  color: var(--hit); }
-    .swipe-overlay.miss { background: rgba(155,35,53,.14); color: var(--miss); }
+    .swipe-overlay.hit  {
+      background: rgba(45,106,79,.14); color: var(--hit);
+      justify-content: flex-end;      /* top-right corner */
+    }
+    .swipe-overlay.miss {
+      background: rgba(155,35,53,.14); color: var(--miss);
+      justify-content: flex-start;    /* top-left corner */
+    }
 
     /* ── DONE ─────────────────────────────────────────── */
     #screen-done { padding-top: 56px; text-align: center; }
@@ -571,6 +589,7 @@
     </div>
     <div class="prog-labels">
       <span id="prog-text"></span>
+      <span id="prog-pct"></span>
       <span id="score-live"></span>
     </div>
     <div class="card-scene">
@@ -626,7 +645,7 @@
   </div>
 
 </div>
-<p class="version">v1.8.20260323</p>
+<p class="version">v1.14.20260323</p>
 
 <!-- Step 2: Markdown rendering libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
@@ -762,6 +781,24 @@ function parseMD(text, filename) {
 function setCardContent(id, text) {
   const el = document.getElementById(id);
   el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  fitText(el);
+}
+
+// ── Step 1: shrink font until content fits the face ────────────
+// Walks up from face-text to its .face parent, then steps the font size
+// down 1px at a time until scrollHeight ≤ clientHeight, or hits 11px floor.
+function fitText(faceTextEl) {
+  const face = faceTextEl.closest('.face');
+  if (!face) return;
+  // Reset to the CSS-defined size first so we never stay at a shrunken size
+  // from a previous longer card
+  faceTextEl.style.fontSize = '';
+  const computed = parseFloat(getComputedStyle(faceTextEl).fontSize);
+  let size = computed;
+  while (face.scrollHeight > face.clientHeight && size > 11) {
+    size -= 1;
+    faceTextEl.style.fontSize = size + 'px';
+  }
 }
 
 // ── Section select screen ──────────────────────────────────────
@@ -860,6 +897,7 @@ function renderCard() {
 
   document.getElementById('prog-fill').style.width  = (done / total * 100) + '%';
   document.getElementById('prog-text').textContent  = `${done + 1} / ${total}`;
+  document.getElementById('prog-pct').textContent   = `${Math.round(done / total * 100)} %`;
   document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
 
   // Front is hidden while card is flipping back — safe to update immediately
@@ -967,10 +1005,22 @@ function esc(s) {
   let startX = 0, startY = 0;
   let dragging = false;
 
-  function resetOverlay() {
-    overlay.style.opacity = '0';
-    overlay.className = 'swipe-overlay';
-    overlay.textContent = '';
+  function resetOverlay(animated) {
+    if (animated) {
+      // Fade out alongside the spring-back so there's no abrupt colour snap
+      overlay.style.transition = 'opacity 200ms ease';
+      overlay.style.opacity    = '0';
+      setTimeout(() => {
+        overlay.style.transition = '';
+        overlay.className        = 'swipe-overlay';
+        overlay.textContent      = '';
+      }, 200);
+    } else {
+      overlay.style.transition = '';
+      overlay.style.opacity    = '0';
+      overlay.className        = 'swipe-overlay';
+      overlay.textContent      = '';
+    }
   }
 
   function resetScene(animated) {
@@ -1005,21 +1055,24 @@ function esc(s) {
 
     // Translate scene with finger
     const tilt = Math.min(absDx / THRESHOLD, 1) * MAX_TILT * Math.sign(dx);
-    scene.style.transition = 'none';
-    scene.style.transform  = `translateX(${dx}px) rotateZ(${tilt}deg)`;
+    scene.style.transition   = 'none';
+    scene.style.transform    = `translateX(${dx}px) rotateZ(${tilt}deg)`;
+
+    // Ensure overlay has no transition during drag — must follow finger instantly
+    overlay.style.transition = 'none';
 
     // Fade overlay in proportion to drag distance (full at threshold)
     const ratio = Math.min(absDx / THRESHOLD, 1);
     const isHit = dx > 0;
     overlay.className   = 'swipe-overlay ' + (isHit ? 'hit' : 'miss');
-    overlay.textContent = isHit ? '✓  Got it' : '✗  Miss';
+    overlay.textContent = isHit ? 'Got it' : 'Miss';
     overlay.style.opacity = String(ratio);
   }, { passive: false });
 
   document.getElementById('card').addEventListener('touchend', function (e) {
     if (!isFlipped || !dragging) {
       dragging = false;
-      resetOverlay();
+      resetOverlay(false);
       return;
     }
     dragging = false;
@@ -1039,7 +1092,7 @@ function esc(s) {
       scene.style.opacity    = '0';
 
       setTimeout(() => {
-        resetOverlay();
+        resetOverlay(false);
         scene.style.transition = 'none';
         scene.style.transform  = '';
         scene.style.opacity    = '';
@@ -1047,7 +1100,7 @@ function esc(s) {
       }, FLY_MS);
     } else {
       // Spring back to centre
-      resetOverlay();
+      resetOverlay(true);
       resetScene(true);
     }
   });
