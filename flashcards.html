@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.15.20260324 -->
+<!-- flashcards.html — version 1.16.20260324 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -628,8 +628,8 @@
       </div>
     </div>
     <div class="answer-btns" id="answer-btns">
-      <button class="btn-miss" onclick="answer(false)">✗  Miss</button>
-      <button class="btn-hit"  onclick="answer(true)">✓  Got it</button>
+      <button class="btn-miss" onclick="commitAnswer(false)">✗  Miss</button>
+      <button class="btn-hit"  onclick="commitAnswer(true)">✓  Got it</button>
     </div>
   </div>
 
@@ -660,7 +660,7 @@
   </div>
 
 </div>
-<p class="version">v1.15.20260324</p>
+<p class="version">v1.16.20260324</p>
 
 <!-- Step 2: Markdown rendering libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
@@ -691,7 +691,7 @@ const FLIP_MS   = 420;    // must match .card transition duration
 const ANIM_THRESHOLD = 80;
 const ANIM_MAX_TILT  = 12;
 const ANIM_FLY_PX    = 420;
-const ANIM_FLY_MS    = 260;
+const ANIM_FLY_MS    = 380;  // duration of the fly-off animation
 // Resolved after DOM is ready (assigned in the swipe IIFE)
 let animScene   = null;
 let animOverlay = null;
