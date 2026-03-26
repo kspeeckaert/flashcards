@@ -1,83 +1,85 @@
-# Chapter 1: Greetings
+# Sample
 
-## こんにちは
+## Chapter 1: Greetings
+
+### こんにちは
 Hello
 
-## おはようございます
+### おはようございます
 Good morning
 
-## こんばんは
+### こんばんは
 Good evening
 
-## さようなら
+### さようなら
 Goodbye
 
-## ありがとう
+### ありがとう
 Thank you
 
-## すみません
+### すみません
 Excuse me / Sorry
 
-# Chapter 2: Numbers
+## Chapter 2: Numbers
 
-## いち
+### いち
 1 (one)
 
-## に
+### に
 2 (two)
 
-## さん
+### さん
 3 (three)
 
-## し／よん
+### し／よん
 4 (four)
 
-## ご
+### ご
 5 (five)
 
-## ろく
+### ろく
 6 (six)
 
-## しち／なな
+### しち／なな
 7 (seven)
 
-## はち
+### はち
 8 (eight)
 
-## きゅう／く
+### きゅう／く
 9 (nine)
 
-## じゅう
+### じゅう
 10 (ten)
 
-# Chapter 3: Common Verbs
+## Chapter 3: Common Verbs
 
-## たべる
+### たべる
 to eat
 
-## のむ
+### のむ
 to drink
 
-## みる
+### みる
 to see / to watch
 
-## きく
+### きく
 to listen / to hear
 
-## はなす
+### はなす
 to speak / to talk
 
-## かく
+### かく
 to write
 
-## よむ
+### よむ
 to read
 
-## いく
+### いく
 to go
 
-## くる
+### くる
 to come
 
-## する
+### する
 to do

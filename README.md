@@ -1,140 +1,61 @@
-# Flashcards App
+# Flashcards
 
-## Overview
-A single-page flashcards web application that:
-- Loads flashcards from a Markdown file
-- Lets users study via flipping and swiping
-- Works locally (file://) and online
-- Supports desktop and touch devices
+A single-file flashcard web app. No build step, no install, no server required — open `flashcards.html` directly in a browser.
 
+## Usage
+
+Open `flashcards.html` in any modern browser, or serve it locally to avoid `file://` restrictions:
+
+```
+python3 -m http.server 8080
+```
+
+## Card format
+
+Cards are written in Markdown:
+
+```md
+# My Japanese Deck
+
+## Chapter 1: Greetings
+
+### こんにちは
+hello
+
+### さようなら
+goodbye
+
+## Chapter 2: Food & Drink
+
+### 食べる
+to eat
+```
+
+- `#` — deck name
+- `##` — section
+- `###` — card front
+- Lines below `###` — card back (supports Markdown: bold, italic, code, lists)
+
+Cards without an answer are skipped with a warning.
 
 ## Features
 
-### 📂 File Input
-- Upload `.md` file or drag & drop
-- Parsed entirely client-side
-- No server required
+- **Saved decks** — toggle "Save this deck" on the select screen to store a deck in the browser (up to 10). Saved decks appear on the home screen and can be deleted by swiping left on mobile or clicking the trash icon on desktop.
+- **Section picker** — choose which sections to study before starting.
+- **Reverse mode** — swap front and back (answer → question).
+- **Shuffle** — cards are shuffled each session.
+- **Undo** — step back one card.
+- **Retry missed** — after finishing, study only the cards you missed.
 
+## Controls
 
-### 🧠 Flashcard System
+| Action         | Input                        |
+|----------------|------------------------------|
+| Flip card      | Click / Tap / Space          |
+| Mark correct   | Right arrow / Swipe right    |
+| Mark incorrect | Left arrow / Swipe left      |
+| Undo           | Undo button (top-left)       |
 
-#### Card Structure (Markdown)
-```md
-# Section title
+## Compatibility
 
-## Card front
-Card back (multi-line supported)
-````
-
-* `#` → Section
-* `##` → Card front
-* Text below → Card back
-
-
-### 🔀 Study Mode
-
-* Cards displayed one at a time
-* Tap / click to flip
-* Swipe or buttons to mark:
-
-  * ✅ Correct
-  * ❌ Incorrect
-
-
-### 🔁 Features
-
-* Shuffle cards
-* Reverse cards (front ↔ back)
-* Retry incorrect cards
-* Single-level undo
-
-
-### ⌨️ Controls
-
-| Action         | Input                 |
-| -------------- | --------------------- |
-| Flip card      | Click / Tap / Space   |
-| Mark correct   | → Arrow / Swipe right |
-| Mark incorrect | ← Arrow / Swipe left  |
-| Undo           | Button                |
-
-
-### 📊 Progress Tracking
-
-* Progress bar
-* Current card index
-* Score:
-
-  * Correct (✓)
-  * Incorrect (✗)
-
-
-### 📱 Touch Support
-
-* Swipe gestures
-* Tap to flip
-* Responsive layout
-
-
-### 🎨 UI Features
-
-* Animated card flip
-* Swipe animations
-* Dynamic text resizing (`fitText`)
-
-
-## Technical Details
-
-### 🧩 Architecture
-
-* Single HTML file
-* No build step
-* Uses:
-
-  * `marked` (Markdown parsing)
-  * `DOMPurify` (sanitization)
-
-
-### ⚙️ Key Components
-
-* `parseMD()` → parses markdown into sections/cards
-* `renderCard()` → updates UI
-* `commitAnswer()` → handles animations + scoring
-* `fitText()` → resizes content to fit card
-
-
-### 🌐 Compatibility
-
-* Safari
-* Chrome
-* Firefox
-* Desktop + mobile
-
-
-### ⚠️ Limitations
-
-* No persistence (data lost on refresh)
-* Strict markdown format
-* No deck management
-* No multi-deck support
-
-
-## Example File
-
-```md
-# Greetings
-
-## Hello
-こんにちは
-
-## Goodbye
-さようなら
-```
-
-## Summary
-
-A lightweight, offline-capable flashcard tool focused on:
-
-* Simplicity
-* Speed
-* Minimal dependencies
+Works in Safari, Chrome, and Firefox on desktop and mobile.

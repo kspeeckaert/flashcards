@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.17.20260326 -->
+<!-- flashcards.html — version 1.19.20260326 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Flashcards</title>
-  <!-- Step 1: preconnect + font-display swap -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
@@ -105,9 +104,7 @@
       border-color: var(--accent);
       background: var(--accent-soft);
     }
-    .drop-zone.drag-over .btn-primary {
-      opacity: .7;
-    }
+    .drop-zone.drag-over .btn-primary { opacity: .7; }
     .drop-hint {
       font-size: 12px; color: var(--ink-faint);
       pointer-events: none;
@@ -140,7 +137,7 @@
     .btn-ghost:active { opacity: .8; transform: scale(.97); }
 
     .format-hint {
-      margin-top: 30px;
+      margin-top: 24px;
       background: var(--surface);
       border: 1px solid var(--ink-faint);
       border-radius: var(--radius);
@@ -159,7 +156,85 @@
     }
     .md-h1  { color: var(--accent); font-weight: bold; }
     .md-h2  { color: var(--hit); }
+    .md-h3  { color: var(--ink); }
     .md-body { color: var(--ink-soft); }
+
+    /* ── DECK LIBRARY ─────────────────────────────────── */
+    .deck-library {
+      width: 100%;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .deck-library-header {
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--ink-soft);
+      margin-bottom: 10px;
+    }
+    .deck-list {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .deck-item {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .deck-item-inner {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface);
+      border: 1.5px solid var(--ink-faint);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color .18s var(--ease), background .18s var(--ease), transform .25s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .deck-item-inner:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .deck-item-content { flex: 1; min-width: 0; }
+    .deck-item-name {
+      display: block; font-size: 15px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .deck-item-meta {
+      display: block; font-size: 12px;
+      color: var(--ink-soft); margin-top: 2px;
+    }
+    /* Desktop delete — shown on hover */
+    .deck-delete-btn {
+      flex-shrink: 0;
+      width: 30px; height: 30px;
+      background: none; border: none;
+      border-radius: 6px;
+      color: var(--ink-faint);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity .15s, color .15s, background .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .deck-item-inner:hover .deck-delete-btn { opacity: 1; }
+    .deck-delete-btn:hover { color: var(--miss); background: var(--miss-soft); }
+    /* Mobile delete — revealed by left swipe */
+    .deck-delete-reveal {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 76px;
+      background: var(--miss);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-family: var(--font-ui);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
 
     /* ── SELECT ───────────────────────────────────────── */
     #screen-select { padding-top: 16px; }
@@ -218,15 +293,45 @@
       display: flex; align-items: center; justify-content: center;
       transition: border-color .18s, background .18s;
     }
-    .section-item.checked .chk {
-      background: var(--accent); border-color: var(--accent);
-    }
+    .section-item.checked .chk { background: var(--accent); border-color: var(--accent); }
     .chk svg { display: none; width: 11px; height: 11px; color: #fff; }
     .section-item.checked .chk svg { display: block; }
 
     .sec-label { flex: 1; }
     .sec-label .name  { font-size: 15px; }
     .sec-label .count { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+
+    .toggle-row {
+      width: 100%;
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 20px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .toggle-knob {
+      width: 38px; height: 22px; flex-shrink: 0;
+      background: var(--ink-faint);
+      border-radius: 99px;
+      position: relative;
+      transition: background .2s;
+    }
+    .toggle-knob::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s var(--ease);
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggle-knob.on { background: var(--accent); }
+    .toggle-knob.on::after { transform: translateX(16px); }
+
+    .toggle-label { font-size: 14px; color: var(--ink); }
+    .toggle-hint  { font-size: 12px; color: var(--ink-soft); }
 
     .start-row {
       width: 100%;
@@ -238,38 +343,6 @@
       text-align: center; flex: 1;
     }
     .sel-count strong { color: var(--ink); }
-
-    .reverse-row {
-      width: 100%;
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 20px;
-      cursor: pointer;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .rev-chk {
-      width: 38px; height: 22px; flex-shrink: 0;
-      background: var(--ink-faint);
-      border-radius: 99px;
-      position: relative;
-      transition: background .2s;
-    }
-    .rev-chk::after {
-      content: '';
-      position: absolute;
-      top: 3px; left: 3px;
-      width: 16px; height: 16px;
-      background: #fff;
-      border-radius: 50%;
-      transition: transform .2s var(--ease);
-      box-shadow: 0 1px 3px rgba(0,0,0,.2);
-    }
-    .rev-chk.on { background: var(--accent); }
-    .rev-chk.on::after { transform: translateX(16px); }
-
-    .rev-label { font-size: 14px; color: var(--ink); }
-    .rev-hint  { font-size: 12px; color: var(--ink-soft); }
 
     /* ── STUDY ────────────────────────────────────────── */
     #screen-study { padding-top: 10px; }
@@ -285,15 +358,21 @@
     .topbar-side.right { justify-content: flex-end; }
 
     .btn-exit {
+      position: relative;
       display: inline-flex; align-items: center; gap: 5px;
       background: none; border: 1.5px solid var(--ink-faint);
       border-radius: 8px;
-      padding: 5px 11px;
+      padding: 10px 14px;
       font-family: var(--font-ui); font-size: 12px; font-weight: 500;
       color: var(--ink-soft);
       cursor: pointer;
       transition: border-color .15s, color .15s;
       -webkit-tap-highlight-color: transparent;
+    }
+    .btn-exit::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
     }
     .btn-exit:hover  { border-color: var(--ink-soft); color: var(--ink); }
     .btn-exit:active { opacity: .7; }
@@ -315,7 +394,7 @@
       font-size: 12px; color: var(--ink-soft);
       margin-bottom: 26px;
     }
-    .prog-labels span        { flex: 1; }
+    .prog-labels span              { flex: 1; }
     .prog-labels span:nth-child(2) { text-align: center; }
     .prog-labels span:last-child   { text-align: right; }
 
@@ -324,6 +403,7 @@
       width: 100%;
       perspective: 900px;
       margin-bottom: 20px;
+      will-change: transform;
     }
     .card {
       width: 100%; min-height: 252px;
@@ -345,6 +425,7 @@
       padding: 24px 30px;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
+      contain: layout paint;
     }
     .face.back { transform: rotateY(180deg); }
 
@@ -365,11 +446,8 @@
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
     }
-    .face.back .face-text {
-      font-size: clamp(18px, 5vw, 28px);
-    }
 
-    /* Step 2: Markdown content styles inside card faces */
+    /* Markdown content styles */
     .face-text p { margin: 0.4em 0; }
     .face-text p:first-child { margin-top: 0; }
     .face-text p:last-child  { margin-bottom: 0; }
@@ -390,9 +468,7 @@
     }
     .face-text ul { list-style-type: '–  '; }
     .face-text li { margin: 0.15em 0; }
-
-    /* Suppress the extra paragraph box when marked.parse wraps a simple
-       single-line front in <p>…</p> — keeps the display inline/centred */
+    /* Suppress the wrapping <p> on simple single-line fronts */
     .face-text > p:only-child { display: inline; }
 
     .tap-hint {
@@ -421,12 +497,12 @@
     .btn-miss { background: var(--miss-soft); color: var(--miss); }
     .btn-hit:active, .btn-miss:active { opacity: .75; transform: scale(.97); }
 
-    /* ── Swipe overlay (touch feedback) ──────────────── */
+    /* ── Swipe overlay ────────────────────────────────── */
     .swipe-overlay {
       position: absolute; inset: 0;
       border-radius: 18px;
       display: flex;
-      align-items: flex-start;        /* pin to top, level with ANSWER label */
+      align-items: flex-start;
       padding: 36px 30px;
       font-family: var(--font-ui); font-size: 13px; font-weight: 600;
       letter-spacing: .04em;
@@ -434,21 +510,13 @@
       opacity: 0;
       pointer-events: none;
     }
-    .swipe-overlay.hit  {
-      background: rgba(45,106,79,.14); color: var(--hit);
-      justify-content: flex-end;      /* top-right corner */
-    }
-    .swipe-overlay.miss {
-      background: rgba(155,35,53,.14); color: var(--miss);
-      justify-content: flex-start;    /* top-left corner */
-    }
+    .swipe-overlay.hit  { background: rgba(45,106,79,.14);  color: var(--hit);  justify-content: flex-end; }
+    .swipe-overlay.miss { background: rgba(155,35,53,.14);  color: var(--miss); justify-content: flex-start; }
 
     /* ── DONE ─────────────────────────────────────────── */
     #screen-done { padding-top: 56px; text-align: center; }
 
-    .done-emoji {
-      font-size: 52px; margin-bottom: 20px; line-height: 1;
-    }
+    .done-emoji { font-size: 52px; margin-bottom: 20px; line-height: 1; }
     #screen-done h2 {
       font-family: var(--font-card);
       font-size: 26px; font-weight: 600;
@@ -499,18 +567,6 @@
       font-size: 11px; color: var(--ink-faint);
       pointer-events: none;
     }
-    .card-scene { will-change: transform; }
-    .face { contain: layout paint; }
-
-    .btn-exit {
-      position: relative;
-      padding: 10px 14px;
-    }
-    .btn-exit::after {
-      content: '';
-      position: absolute;
-      inset: -6px;
-    }
   </style>
 </head>
 <body>
@@ -530,9 +586,16 @@
     </div>
     <h1>Load a deck</h1>
     <p class="sub">Pick a Markdown (.md) file to get started</p>
+
+    <!-- Saved deck library (hidden until decks exist) -->
+    <div class="deck-library" id="deck-library" style="display:none">
+      <p class="deck-library-header">Saved decks</p>
+      <div class="deck-list" id="deck-list"></div>
+    </div>
+
     <input type="file" id="file-input" accept=".md,.markdown,.txt">
     <div class="drop-zone" id="drop-zone">
-      <button class="btn-primary" onclick="document.getElementById('file-input').click()">
+      <button class="btn-primary" id="btn-choose-file">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -543,19 +606,22 @@
       </button>
       <span class="drop-hint">or drag &amp; drop a .md file here</span>
     </div>
+
     <div class="format-hint">
       <h3>Expected format</h3>
-      <pre><span class="md-h1"># Chapter 1: Greetings</span>
+      <pre><span class="md-h1"># My Japanese Deck</span>
 
-<span class="md-h2">## こんにちは</span>
+<span class="md-h2">## Chapter 1: Greetings</span>
+
+<span class="md-h3">### こんにちは</span>
 <span class="md-body">hello</span>
 
-<span class="md-h2">## さようなら</span>
+<span class="md-h3">### さようなら</span>
 <span class="md-body">goodbye</span>
 
-<span class="md-h1"># Chapter 2: Food &amp; Drink</span>
+<span class="md-h2">## Chapter 2: Food &amp; Drink</span>
 
-<span class="md-h2">## 食べる</span>
+<span class="md-h3">### 食べる</span>
 <span class="md-body">to eat</span></pre>
     </div>
   </div>
@@ -565,16 +631,20 @@
     <p class="wordmark">Flashcards</p>
     <div class="sec-header">
       <h2>Choose sections</h2>
-      <button class="btn-text" id="toggle-all-btn" onclick="toggleAll()">Deselect all</button>
+      <button class="btn-text" id="toggle-all-btn">Deselect all</button>
     </div>
     <p class="deck-name" id="deck-name"></p>
     <div class="section-list" id="section-list"></div>
-    <label class="reverse-row" id="reverse-toggle">
-      <div class="rev-chk" id="rev-chk"></div>
-      <span class="rev-label">Reverse cards <span class="rev-hint">(answer → question)</span></span>
+    <label class="toggle-row" id="reverse-toggle">
+      <div class="toggle-knob" id="rev-knob"></div>
+      <span class="toggle-label">Reverse cards <span class="toggle-hint">(answer → question)</span></span>
+    </label>
+    <label class="toggle-row" id="save-toggle">
+      <div class="toggle-knob" id="save-knob"></div>
+      <span class="toggle-label">Save this deck <span class="toggle-hint">(stored in browser)</span></span>
     </label>
     <div class="start-row">
-      <button class="btn-ghost" onclick="showScreen('screen-load')">
+      <button class="btn-ghost" id="btn-back-to-load">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
@@ -582,7 +652,7 @@
         Back
       </button>
       <span class="sel-count" id="sel-count"></span>
-      <button class="btn-primary" id="start-btn" onclick="startStudy(null)">Study →</button>
+      <button class="btn-primary" id="start-btn">Study →</button>
     </div>
   </div>
 
@@ -590,7 +660,7 @@
   <div id="screen-study" class="screen">
     <div class="study-topbar">
       <div class="topbar-side">
-        <button class="btn-exit" id="btn-goback" onclick="goBack()" title="Undo last answer" style="display:none">
+        <button class="btn-exit" id="btn-goback" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 14 4 9 9 4"/>
@@ -601,11 +671,11 @@
       </div>
       <p class="wordmark" style="margin:0">Flashcards</p>
       <div class="topbar-side right">
-        <button class="btn-exit" onclick="exitStudy()" title="Exit to section select">
+        <button class="btn-exit" id="btn-exit-study">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6"  y1="6" x2="18" y2="18"/>
+            <line x1="18" y1="6"  x2="6"  y2="18"/>
+            <line x1="6"  y1="6"  x2="18" y2="18"/>
           </svg>
           Exit
         </button>
@@ -620,7 +690,7 @@
       <span id="score-live"></span>
     </div>
     <div class="card-scene">
-      <div class="card" id="card" onclick="flipCard()">
+      <div class="card" id="card">
         <div class="face front">
           <span class="face-label">Front</span>
           <div class="face-text" id="card-front"></div>
@@ -629,7 +699,7 @@
                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M7 13l5 5 5-5M7 6l5 5 5-5"/>
             </svg>
-            Tap to reveal
+            <span class="tap-hint-text">Click to reveal</span>
           </div>
         </div>
         <div class="face back">
@@ -640,13 +710,14 @@
       </div>
     </div>
     <div class="answer-btns" id="answer-btns">
-      <button class="btn-miss" onclick="commitAnswer(false)">✗  Miss</button>
-      <button class="btn-hit"  onclick="commitAnswer(true)">✓  Got it</button>
+      <button class="btn-miss" id="btn-miss">✗  Miss</button>
+      <button class="btn-hit"  id="btn-hit">✓  Got it</button>
     </div>
   </div>
 
   <!-- DONE -->
-  <div id="screen-done" class="screen">    <p class="wordmark">Flashcards</p>
+  <div id="screen-done" class="screen">
+    <p class="wordmark">Flashcards</p>
     <div class="done-emoji" id="done-emoji"></div>
     <h2 id="done-heading"></h2>
     <p class="sub" id="done-sub"></p>
@@ -661,65 +732,258 @@
       </div>
     </div>
     <div class="done-actions">
-      <button class="btn-primary" style="width:100%;justify-content:center"
-              onclick="startStudy(lastDeck.slice())">Study again</button>
-      <button class="btn-secondary" id="btn-missed" onclick="startStudy(missedCards.slice())">
-        Study missed cards
-      </button>
-      <button class="btn-secondary" onclick="showScreen('screen-select')">Change sections</button>
-      <button class="btn-secondary" onclick="showScreen('screen-load')">Load new deck</button>
+      <button class="btn-primary" id="btn-study-again" style="width:100%;justify-content:center">Study again</button>
+      <button class="btn-secondary" id="btn-missed">Study missed cards</button>
+      <button class="btn-secondary" id="btn-change-sections">Change sections</button>
+      <button class="btn-secondary" id="btn-load-new">Load new deck</button>
     </div>
   </div>
 
 </div>
-<p class="version">v1.16.20260324</p>
+<p class="version">v1.19.20260326</p>
 
-<!-- Step 2: Markdown rendering libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
-
 <script>
+// ── marked config ──────────────────────────────────────────────
+marked.use({ breaks: true });
+
 // ── State ──────────────────────────────────────────────────────
-let parsedDeck  = null;   // { filename, sections: [{title, cards:[{front,back}]}] }
-let activeDeck  = [];     // cards for current session (shuffled)
-let lastDeck    = [];     // copy of activeDeck for "study again"
-let missedCards = [];
-let cardIndex   = 0;
-let hits        = 0;
-let misses      = 0;
-let isFlipped   = false;
-let isReversed  = false;
-let isAnimating = false;
+let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{front,back}]}] }
+let activeDeck        = [];
+let lastDeck          = [];
+let missedCards       = [];
+let cardIndex         = 0;
+let hits              = 0;
+let misses            = 0;
+let isFlipped         = false;
+let isReversed        = false;
+let isAnimating       = false;
+let prevState         = null;
+let canGoBack         = false;
+let btnShowTimeout    = null;
 
-// Go-back state
-let prevState   = null;   // {card, correct, hits, misses, cardIndex}
-let canGoBack   = false;
+// Persistence state
+let saveEnabled          = false;
+let hasSavedCurrentDeck  = false;
+let currentRawMarkdown   = '';
+let currentFilename      = '';
 
-// Pending timeout for showing answer buttons after flip
-let btnShowTimeout = null;
-
-const FLIP_MS   = 420;    // must match .card transition duration
-
-// ── Animation constants & shared elements (used by both touch and keyboard) ──
+const FLIP_MS        = 420;
 const ANIM_THRESHOLD = 80;
 const ANIM_MAX_TILT  = 12;
 const ANIM_FLY_PX    = 420;
-const ANIM_FLY_MS    = 380;  // duration of the fly-off animation
-// Resolved after DOM is ready (assigned in the swipe IIFE)
+const ANIM_FLY_MS    = 380;
+
+// Assigned in swipe IIFE
 let animScene   = null;
 let animOverlay = null;
+
+// ── Storage ────────────────────────────────────────────────────
+const STORAGE_KEY = 'fc_decks';
+const MAX_DECKS   = 10;
+
+function getDecks() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function setDecks(decks) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
+  } catch {
+    alert('Could not save — your browser may be blocking localStorage or storage is full.');
+  }
+}
+
+function saveDeck() {
+  if (hasSavedCurrentDeck) return;
+  const decks = getDecks();
+  if (decks.length >= MAX_DECKS) {
+    alert(`You can store up to ${MAX_DECKS} decks. Remove one to save a new deck.`);
+    return;
+  }
+  const totalCards = parsedDeck.sections.reduce((n, s) => n + s.cards.length, 0);
+  decks.push({
+    id:        Date.now().toString(36) + Math.random().toString(36).slice(2),
+    name:      parsedDeck.name,
+    raw:       currentRawMarkdown,
+    sections:  parsedDeck.sections.length,
+    cards:     totalCards,
+    createdAt: new Date().toISOString().slice(0, 10)
+  });
+  setDecks(decks);
+  hasSavedCurrentDeck = true;
+}
+
+function deleteDeck(id) {
+  if (!confirm('Delete this deck?')) return;
+  setDecks(getDecks().filter(d => d.id !== id));
+  renderDeckList();
+}
+
+// ── Deck library ───────────────────────────────────────────────
+function renderDeckList() {
+  const decks     = getDecks();
+  const library   = document.getElementById('deck-library');
+  const list      = document.getElementById('deck-list');
+
+  if (!decks.length) {
+    library.style.display = 'none';
+    return;
+  }
+
+  library.style.display = '';
+  list.innerHTML = '';
+
+  decks.forEach(deck => {
+    const item  = document.createElement('div');
+    item.className  = 'deck-item';
+
+    const inner = document.createElement('div');
+    inner.className = 'deck-item-inner';
+
+    const content = document.createElement('div');
+    content.className = 'deck-item-content';
+
+    const nameEl = document.createElement('span');
+    nameEl.className   = 'deck-item-name';
+    nameEl.textContent = deck.name;
+
+    const metaEl = document.createElement('span');
+    metaEl.className   = 'deck-item-meta';
+    const secLabel  = `${deck.sections} section${deck.sections !== 1 ? 's' : ''}`;
+    const cardLabel = `${deck.cards} card${deck.cards !== 1 ? 's' : ''}`;
+    metaEl.textContent = `${secLabel} · ${cardLabel} · ${deck.createdAt}`;
+
+    content.appendChild(nameEl);
+    content.appendChild(metaEl);
+
+    // Desktop delete button
+    const delBtn = document.createElement('button');
+    delBtn.className = 'deck-delete-btn';
+    delBtn.title     = 'Delete deck';
+    delBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>`;
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteDeck(deck.id); });
+
+    inner.appendChild(content);
+    inner.appendChild(delBtn);
+    inner.addEventListener('click', () => loadDeckById(deck.id));
+
+    // Mobile swipe-to-delete reveal button
+    const revBtn = document.createElement('button');
+    revBtn.className   = 'deck-delete-reveal';
+    revBtn.textContent = 'Delete';
+    revBtn.addEventListener('click', e => { e.stopPropagation(); deleteDeck(deck.id); });
+
+    item.appendChild(inner);
+    item.appendChild(revBtn);
+    list.appendChild(item);
+  });
+
+  initDeckSwipe();
+}
+
+function loadDeckById(id) {
+  const stored = getDecks().find(d => d.id === id);
+  if (!stored) return;
+  currentRawMarkdown  = stored.raw;
+  currentFilename     = stored.name;
+  const deck = parseMD(stored.raw, stored.name);
+  if (!deck.sections.length) return;
+  parsedDeck          = deck;
+  hasSavedCurrentDeck = true;  // already persisted — don't re-save
+  saveEnabled         = false;
+  document.getElementById('save-knob').classList.remove('on');
+  buildSelectScreen();
+  showScreen('screen-select');
+}
+
+// ── Deck swipe-to-delete (touch) ───────────────────────────────
+function initDeckSwipe() {
+  const SNAP_PX   = 76;
+  const THRESHOLD = 36;
+
+  document.querySelectorAll('.deck-item').forEach(item => {
+    const inner = item.querySelector('.deck-item-inner');
+    let startX  = 0, startY = 0, dragging = false, revealed = false;
+
+    inner.addEventListener('touchstart', e => {
+      startX   = e.changedTouches[0].clientX;
+      startY   = e.changedTouches[0].clientY;
+      dragging = false;
+      inner.style.transition = 'none';
+    }, { passive: true });
+
+    inner.addEventListener('touchmove', e => {
+      const dx    = e.changedTouches[0].clientX - startX;
+      const dy    = e.changedTouches[0].clientY - startY;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      if (!dragging && absDx < 6) return;
+      if (!dragging && absDy > absDx) return;
+      dragging = true;
+      e.preventDefault();
+
+      const base   = revealed ? -SNAP_PX : 0;
+      const offset = Math.max(-SNAP_PX, Math.min(0, base + dx));
+      inner.style.transform = `translateX(${offset}px)`;
+    }, { passive: false });
+
+    inner.addEventListener('touchend', e => {
+      if (!dragging) return;
+      dragging = false;
+      const dx = e.changedTouches[0].clientX - startX;
+      inner.style.transition = 'transform .25s var(--ease)';
+
+      if ((!revealed && dx < -THRESHOLD) || (revealed && dx < THRESHOLD)) {
+        inner.style.transform = `translateX(-${SNAP_PX}px)`;
+        revealed = true;
+      } else {
+        inner.style.transform = '';
+        revealed = false;
+      }
+    });
+  });
+
+  // Tap outside to collapse any revealed item
+  document.addEventListener('touchstart', e => {
+    document.querySelectorAll('.deck-item-inner').forEach(inner => {
+      if (!inner.closest('.deck-item').contains(e.target)) {
+        inner.style.transition = 'transform .25s var(--ease)';
+        inner.style.transform  = '';
+      }
+    });
+  }, { passive: true });
+}
 
 // ── Screens ────────────────────────────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0, 0);
+  if (id === 'screen-load') renderDeckList();
 }
 
-// ── Reverse toggle ─────────────────────────────────────────────
+// ── Toggles (reverse + save) ───────────────────────────────────
 document.getElementById('reverse-toggle').addEventListener('click', () => {
   isReversed = !isReversed;
-  document.getElementById('rev-chk').classList.toggle('on', isReversed);
+  document.getElementById('rev-knob').classList.toggle('on', isReversed);
+});
+
+document.getElementById('save-toggle').addEventListener('click', () => {
+  if (hasSavedCurrentDeck) return;  // already saved, ignore
+  saveEnabled = !saveEnabled;
+  document.getElementById('save-knob').classList.toggle('on', saveEnabled);
 });
 
 // ── File loading ───────────────────────────────────────────────
@@ -729,21 +993,28 @@ function loadFile(file) {
   if (!file) return;
   const ext = '.' + file.name.split('.').pop().toLowerCase();
   if (!VALID_EXTS.includes(ext)) {
-    alert(`Unsupported file type: "${file.name}"\n\nPlease drop a .md, .markdown, or .txt file.`);
+    alert(`Unsupported file type: "${file.name}"\n\nPlease use a .md, .markdown, or .txt file.`);
     return;
   }
   const reader = new FileReader();
   reader.onload = ev => {
-    const deck = parseMD(ev.target.result, file.name);
+    const raw  = ev.target.result;
+    const deck = parseMD(raw, file.name);
     if (!deck.sections.length) {
       parsedDeck = null;
-      alert('No cards found.\n\nMake sure your file uses\n  # Heading  — for sections\n  ## Term    — for card fronts\nfollowed by the answer on the next line.');
+      alert('No cards found.\n\nMake sure your file uses:\n  #   — deck name\n  ##  — section\n  ### — card front\nfollowed by the answer on the next line.');
       return;
     }
-    parsedDeck = deck;
+    parsedDeck          = deck;
+    currentRawMarkdown  = raw;
+    currentFilename     = file.name;
+    hasSavedCurrentDeck = false;
+    saveEnabled         = false;
+    document.getElementById('save-knob').classList.remove('on');
     buildSelectScreen();
     showScreen('screen-select');
   };
+  reader.onerror = () => alert('Could not read the file. Please try again.');
   reader.readAsText(file);
 }
 
@@ -752,156 +1023,152 @@ document.getElementById('file-input').addEventListener('change', function (e) {
   e.target.value = '';
 });
 
+document.getElementById('btn-choose-file').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
 // ── Drag-and-drop ──────────────────────────────────────────────
 (function () {
   const zone = document.getElementById('drop-zone');
-
-  // Prevent browser default (open file) on the whole page
-  ['dragover', 'drop'].forEach(evt =>
-    document.addEventListener(evt, e => e.preventDefault())
-  );
-
-  zone.addEventListener('dragenter', e => {
-    e.preventDefault();
-    zone.classList.add('drag-over');
-  });
-  zone.addEventListener('dragover', e => {
-    e.preventDefault();
-    zone.classList.add('drag-over');
-  });
-  zone.addEventListener('dragleave', e => {
-    // Only remove highlight when leaving the zone itself, not a child element
-    if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
-  });
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    loadFile(e.dataTransfer.files[0]);
-  });
+  ['dragover', 'drop'].forEach(evt => document.addEventListener(evt, e => e.preventDefault()));
+  zone.addEventListener('dragenter',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragover',   e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave',  e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop',       e => { e.preventDefault(); zone.classList.remove('drag-over'); loadFile(e.dataTransfer.files[0]); });
 })();
 
-// ── Markdown parser (improved) ─────────────────
+// ── Markdown parser — format: # deck / ## section / ### card ──
 function parseMD(text, filename) {
-  const lines = text.split('\n');
+  const lines    = text.split('\n');
   const sections = [];
-  let section = { title: 'No sections', cards: [] };
-  let hasExplicitSection = false;
-  let card = null;
-  let backBuf = [];
-  let skipped = 0;
+  let deckName   = null;
+  let section    = null;
+  let card       = null;
+  let backBuf    = [];
+  let skipped    = 0;
 
   function saveCard() {
-    if (card) {
-      const back = backBuf.join('\n').trim();
-      if (back) {
-        section.cards.push({ front: card, back });
-      } else {
-        skipped++;
-      }
+    if (!card) return;
+    const back = backBuf.join('\n').trim();
+    if (back) {
+      section.cards.push({ front: card, back });
+    } else {
+      skipped++;
     }
-    card = null;
+    card    = null;
     backBuf = [];
   }
 
   function saveSection() {
     saveCard();
-    if (section.cards.length) sections.push(section);
-    section = { title: 'No sections', cards: [] };
+    if (section && section.cards.length) sections.push(section);
+    section = null;
   }
 
-  for (let rawLine of lines) {
-    const line = rawLine.trim();
+  for (const rawLine of lines) {
+    const line    = rawLine.trim();
+    const hMatch  = line.match(/^(#{1,3}) (.+)/);
+    const level   = hMatch ? hMatch[1].length : 0;
+    const heading = hMatch ? hMatch[2].trim() : '';
 
-    if (/^#\s+/.test(line)) {
-      hasExplicitSection = true;
+    if (level === 1) {
+      if (!deckName) deckName = heading;
+    } else if (level === 2) {
       saveSection();
-      section = { title: line.replace(/^#\s+/, '').trim(), cards: [] };
-    }
-    else if (/^##\s+/.test(line)) {
+      section = { title: heading, cards: [] };
+    } else if (level === 3) {
+      if (!section) section = { title: 'Cards', cards: [] };
       saveCard();
-      card = line.replace(/^##\s+/, '').trim();
-    }
-    else if (card !== null) {
-      if (backBuf.length === 0 && !line) continue; // ignore leading empty
+      card    = heading;
+      backBuf = [];
+    } else if (card !== null) {
+      if (!backBuf.length && !line) continue;  // skip leading blank lines
       backBuf.push(rawLine.trimEnd());
     }
   }
 
   saveSection();
 
-  if (!hasExplicitSection && section.cards.length) {
-    sections.push(section);
-  }
-
   if (skipped) {
-    alert(`${skipped} cards were skipped because they had no answer.`);
+    alert(`${skipped} card${skipped !== 1 ? 's were' : ' was'} skipped (no answer text).`);
   }
 
-  return { filename, sections };
+  return {
+    filename,
+    name:     deckName || filename.replace(/\.[^.]+$/, ''),
+    sections
+  };
 }
 
-// ── Markdown content helper ────────────────────────────────────
-// Always use full block parsing so lists, bold etc. render correctly on
-// both faces. A CSS rule suppresses the wrapping <p> on simple single-line fronts.
+// ── Card content rendering ─────────────────────────────────────
 function setCardContent(id, text) {
   const el = document.getElementById(id);
   el.innerHTML = DOMPurify.sanitize(marked.parse(text));
   fitText(el);
 }
 
-// ── Step 1: shrink font until content fits the face ────────────
-// ── fitText (binary search) ───────────────────
 function fitText(faceTextEl) {
   const face = faceTextEl.closest('.face');
   if (!face) return;
-
   faceTextEl.style.fontSize = '';
   let min = 11;
   let max = parseFloat(getComputedStyle(faceTextEl).fontSize);
-
   while (min <= max) {
     const mid = Math.floor((min + max) / 2);
     faceTextEl.style.fontSize = mid + 'px';
-
-    if (face.scrollHeight > face.clientHeight) {
-      max = mid - 1;
-    } else {
-      min = mid + 1;
-    }
+    if (face.scrollHeight > face.clientHeight) max = mid - 1;
+    else min = mid + 1;
   }
 }
 
 // ── Section select screen ──────────────────────────────────────
 function buildSelectScreen() {
-  document.getElementById('deck-name').textContent = parsedDeck.filename;
+  document.getElementById('deck-name').textContent = parsedDeck.name;
   const list = document.getElementById('section-list');
   list.innerHTML = '';
 
   parsedDeck.sections.forEach((sec, i) => {
-    const el = document.createElement('label');
-    el.className = 'section-item checked';
+    const el  = document.createElement('label');
+    el.className  = 'section-item checked';
     el.dataset.idx = i;
-    el.innerHTML = `
-      <input type="checkbox" checked>
-      <div class="chk">
-        <svg viewBox="0 0 11 9" fill="none" stroke="currentColor"
-             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="1 4.5 4 7.5 10 1"/>
-        </svg>
-      </div>
-      <div class="sec-label">
-        <div class="name">${esc(sec.title)}</div>
-        <div class="count">${sec.cards.length} card${sec.cards.length !== 1 ? 's' : ''}</div>
-      </div>`;
+
+    const cb  = document.createElement('input');
+    cb.type   = 'checkbox';
+    cb.checked = true;
+
+    const chk = document.createElement('div');
+    chk.className = 'chk';
+    chk.innerHTML = `<svg viewBox="0 0 11 9" fill="none" stroke="currentColor"
+      stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="1 4.5 4 7.5 10 1"/></svg>`;
+
+    const labelDiv  = document.createElement('div');
+    labelDiv.className = 'sec-label';
+
+    const nameDiv   = document.createElement('div');
+    nameDiv.className  = 'name';
+    nameDiv.textContent = sec.title;
+
+    const countDiv  = document.createElement('div');
+    countDiv.className  = 'count';
+    countDiv.textContent = `${sec.cards.length} card${sec.cards.length !== 1 ? 's' : ''}`;
+
+    labelDiv.appendChild(nameDiv);
+    labelDiv.appendChild(countDiv);
+    el.appendChild(cb);
+    el.appendChild(chk);
+    el.appendChild(labelDiv);
+
     el.addEventListener('click', () => toggleItem(el));
     list.appendChild(el);
   });
 
   refreshCount();
+  refreshSaveToggle();
 }
 
 function toggleItem(el) {
-  const cb = el.querySelector('input');
+  const cb  = el.querySelector('input');
   cb.checked = !cb.checked;
   el.classList.toggle('checked', cb.checked);
   refreshCount();
@@ -926,8 +1193,16 @@ function refreshCount() {
 
   document.getElementById('toggle-all-btn').textContent = allOn ? 'Deselect all' : 'Select all';
   document.getElementById('start-btn').disabled = total === 0;
-  document.getElementById('sel-count').innerHTML =
-    `<strong>${total}</strong> card${total !== 1 ? 's' : ''} selected`;
+  const countEl = document.getElementById('sel-count');
+  const strong  = document.createElement('strong');
+  strong.textContent = total;
+  countEl.innerHTML  = '';
+  countEl.appendChild(strong);
+  countEl.append(` card${total !== 1 ? 's' : ''} selected`);
+}
+
+function refreshSaveToggle() {
+  document.getElementById('save-toggle').style.display = hasSavedCurrentDeck ? 'none' : '';
 }
 
 // ── Study ──────────────────────────────────────────────────────
@@ -938,11 +1213,14 @@ function startStudy(cardsOverride) {
     const items   = [...document.querySelectorAll('.section-item')];
     const checked = items.filter(i => i.querySelector('input').checked);
     if (!checked.length) return;
-    const cards = checked.flatMap(el => parsedDeck.sections[+el.dataset.idx].cards);
-    activeDeck  = shuffle([...cards]);
+    const cards   = checked.flatMap(el => parsedDeck.sections[+el.dataset.idx].cards);
+    activeDeck    = shuffle([...cards]);
   }
 
   if (!activeDeck.length) return;
+
+  // Save deck to localStorage if toggled on and not yet saved
+  if (saveEnabled && !hasSavedCurrentDeck) saveDeck();
 
   lastDeck    = [...activeDeck];
   missedCards = [];
@@ -957,24 +1235,23 @@ function startStudy(cardsOverride) {
   renderCard();
 }
 
-// ── Step 7: deferred back-text to prevent flash during flip-back ──
-// ── Reverse logic (non-mutating) ───────────────
+// ── Render card ────────────────────────────────────────────────
 function renderCard() {
   const total       = activeDeck.length;
   const done        = cardIndex;
-  const currentCard = activeDeck[cardIndex]; // capture index now
+  const currentCard = activeDeck[cardIndex];
 
   document.getElementById('prog-fill').style.width = (done / total * 100) + '%';
   document.getElementById('prog-text').textContent = `${done + 1} / ${total}`;
-  document.getElementById('prog-pct').textContent = `${Math.round(done / total * 100)} %`;
+  document.getElementById('prog-pct').textContent  = `${Math.round(done / total * 100)} %`;
   document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
 
-  const front = isReversed ? currentCard.back : currentCard.front;
+  const front = isReversed ? currentCard.back  : currentCard.front;
   const back  = isReversed ? currentCard.front : currentCard.back;
 
   setCardContent('card-front', front);
 
-  const cardEl = document.getElementById('card');
+  const cardEl    = document.getElementById('card');
   const wasFlipped = cardEl.classList.contains('flipped');
 
   if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
@@ -982,13 +1259,13 @@ function renderCard() {
   isFlipped = false;
   document.getElementById('answer-btns').classList.remove('visible');
 
+  // Defer back content to avoid a flash during the flip-back transition
   if (wasFlipped) {
     setTimeout(() => setCardContent('card-back', back), FLIP_MS);
   } else {
     setCardContent('card-back', back);
   }
 }
-
 
 function flipCard() {
   isFlipped = !isFlipped;
@@ -1003,7 +1280,6 @@ function flipCard() {
 }
 
 function answer(correct) {
-  // Save state so the user can undo exactly one card
   prevState = { card: activeDeck[cardIndex], correct, hits, misses, cardIndex };
   canGoBack = true;
   refreshBackBtn();
@@ -1011,20 +1287,16 @@ function answer(correct) {
   if (!correct) missedCards.push(activeDeck[cardIndex]);
   if (correct) hits++; else misses++;
   cardIndex++;
-  if (cardIndex >= activeDeck.length) {
-    showDone();
-  } else {
-    renderCard();
-  }
+  if (cardIndex >= activeDeck.length) showDone();
+  else renderCard();
 }
 
-// ── Go back one card ───────────────────────────────────────────
+// ── Undo last card ─────────────────────────────────────────────
 function goBack() {
-  if (!prevState) return;
+  if (!prevState || isAnimating) return;
   cardIndex = prevState.cardIndex;
   hits      = prevState.hits;
   misses    = prevState.misses;
-  // Remove the card from missedCards if it was added there
   if (!prevState.correct) {
     const idx = missedCards.indexOf(prevState.card);
     if (idx !== -1) missedCards.splice(idx, 1);
@@ -1039,13 +1311,13 @@ function refreshBackBtn() {
   document.getElementById('btn-goback').style.display = canGoBack ? '' : 'none';
 }
 
-// ── Step 4: exit with confirmation ────────────────────────────
 function exitStudy() {
   if (cardIndex > 0 && !confirm('Exit this session? Your progress will be lost.')) return;
   showScreen('screen-select');
+  refreshSaveToggle();
 }
 
-// ── Done ───────────────────────────────────────────────────────
+// ── Done screen ────────────────────────────────────────────────
 function showDone() {
   const total = activeDeck.length;
   const pct   = Math.round(hits / total * 100);
@@ -1056,13 +1328,12 @@ function showDone() {
   else if (pct >= 50) { emoji = '💪'; heading = 'Keep going!'; }
   else                { emoji = '📖'; heading = 'More practice needed'; }
 
-  document.getElementById('done-emoji').textContent   = emoji;
-  document.getElementById('done-heading').textContent = heading;
-  document.getElementById('done-sub').textContent     =
-    `${pct}% correct · ${total} card${total !== 1 ? 's' : ''}`;
-  document.getElementById('done-hit').textContent     = hits;
-  document.getElementById('done-miss').textContent    = misses;
-  document.getElementById('btn-missed').style.display = misses > 0 ? '' : 'none';
+  document.getElementById('done-emoji').textContent    = emoji;
+  document.getElementById('done-heading').textContent  = heading;
+  document.getElementById('done-sub').textContent      = `${pct}% correct · ${total} card${total !== 1 ? 's' : ''}`;
+  document.getElementById('done-hit').textContent      = hits;
+  document.getElementById('done-miss').textContent     = misses;
+  document.getElementById('btn-missed').style.display  = misses > 0 ? '' : 'none';
 
   showScreen('screen-done');
 }
@@ -1076,17 +1347,15 @@ function shuffle(arr) {
   return arr;
 }
 
-function esc(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ── Shared animation helpers (used by touch AND keyboard) ──────
-// commitAnswer: flies the card off in the given direction then calls answer().
+// ── commitAnswer (fly-off animation) ──────────────────────────
 function commitAnswer(correct) {
   if (isAnimating) return;
   isAnimating = true;
 
-  if (navigator.vibrate) {
+  // Hide answer buttons immediately on entry
+  document.getElementById('answer-btns').classList.remove('visible');
+
+  if (typeof navigator.vibrate === 'function') {
     navigator.vibrate(correct ? 20 : [10, 40, 10]);
   }
 
@@ -1098,47 +1367,41 @@ function commitAnswer(correct) {
   const dir = correct ? 1 : -1;
 
   animOverlay.style.transition = 'none';
-  animOverlay.className = 'swipe-overlay ' + (correct ? 'hit' : 'miss');
-  animOverlay.textContent = correct ? 'Got it' : 'Miss';
-  animOverlay.style.opacity = '1';
+  animOverlay.className        = 'swipe-overlay ' + (correct ? 'hit' : 'miss');
+  animOverlay.textContent      = correct ? 'Got it' : 'Miss';
+  animOverlay.style.opacity    = '1';
 
   animScene.style.transition = `transform ${ANIM_FLY_MS}ms var(--ease), opacity ${ANIM_FLY_MS}ms ease`;
-  animScene.style.transform = `translate3d(${dir * ANIM_FLY_PX}px,0,0) rotateZ(${dir * ANIM_MAX_TILT}deg)`;
-  animScene.style.opacity = '0';
+  animScene.style.transform  = `translate3d(${dir * ANIM_FLY_PX}px,0,0) rotateZ(${dir * ANIM_MAX_TILT}deg)`;
+  animScene.style.opacity    = '0';
 
   setTimeout(() => {
     animOverlay.style.opacity = '0';
-    animOverlay.className = 'swipe-overlay';
-    animOverlay.textContent = '';
+    animOverlay.className     = 'swipe-overlay';
+    animOverlay.textContent   = '';
     animScene.style.transition = 'none';
-    animScene.style.transform = '';
-    animScene.style.opacity = '';
-
+    animScene.style.transform  = '';
+    animScene.style.opacity    = '';
     isAnimating = false;
     answer(correct);
   }, ANIM_FLY_MS);
 }
 
-// ── Swipe gestures with visual feedback (mobile) ──────────────
+// ── Swipe gestures (mobile) ────────────────────────────────────
 (function () {
-  animScene   = document.getElementById('card').parentElement; // .card-scene
+  animScene   = document.getElementById('card').parentElement;
   animOverlay = document.getElementById('swipe-overlay');
 
   const scene   = animScene;
   const overlay = animOverlay;
 
-  let startX = 0, startY = 0;
-  let dragging = false;
+  let startX = 0, startY = 0, dragging = false;
 
   function resetOverlay(animated) {
     if (animated) {
       overlay.style.transition = 'opacity 200ms ease';
       overlay.style.opacity    = '0';
-      setTimeout(() => {
-        overlay.style.transition = '';
-        overlay.className        = 'swipe-overlay';
-        overlay.textContent      = '';
-      }, 200);
+      setTimeout(() => { overlay.style.transition = ''; overlay.className = 'swipe-overlay'; overlay.textContent = ''; }, 200);
     } else {
       overlay.style.transition = '';
       overlay.style.opacity    = '0';
@@ -1148,32 +1411,27 @@ function commitAnswer(correct) {
   }
 
   function resetScene(animated) {
-    if (animated) {
-      scene.style.transition = `transform ${FLIP_MS}ms var(--ease)`;
-    } else {
-      scene.style.transition = 'none';
-    }
-    scene.style.transform = '';
+    scene.style.transition = animated ? `transform ${FLIP_MS}ms var(--ease)` : 'none';
+    scene.style.transform  = '';
     setTimeout(() => { scene.style.transition = ''; }, animated ? FLIP_MS : 0);
   }
 
-  document.getElementById('card').addEventListener('touchstart', function (e) {
+  document.getElementById('card').addEventListener('touchstart', e => {
     startX   = e.changedTouches[0].clientX;
     startY   = e.changedTouches[0].clientY;
     dragging = false;
   }, { passive: true });
 
-  document.getElementById('card').addEventListener('touchmove', function (e) {
+  document.getElementById('card').addEventListener('touchmove', e => {
     if (!isFlipped) return;
     const dx    = e.changedTouches[0].clientX - startX;
     const dy    = e.changedTouches[0].clientY - startY;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    if (!dragging && absDx < 8) return;
-    if (!dragging && absDy > absDx) return;
+    if (!dragging && absDx < 8)        return;
+    if (!dragging && absDy > absDx)    return;
     dragging = true;
-
     e.preventDefault();
 
     const tilt = Math.min(absDx / ANIM_THRESHOLD, 1) * ANIM_MAX_TILT * Math.sign(dx);
@@ -1188,23 +1446,18 @@ function commitAnswer(correct) {
     overlay.style.opacity = String(ratio);
   }, { passive: false });
 
-  document.getElementById('card').addEventListener('touchend', function (e) {
-    if (!isFlipped || !dragging) {
-      dragging = false;
-      resetOverlay(false);
-      return;
-    }
+  document.getElementById('card').addEventListener('touchend', e => {
+    if (!isFlipped || !dragging) { dragging = false; resetOverlay(false); return; }
     dragging = false;
 
-    const dx    = e.changedTouches[0].clientX - startX;
-    const dy    = e.changedTouches[0].clientY - startY;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
+    const dx        = e.changedTouches[0].clientX - startX;
+    const dy        = e.changedTouches[0].clientY - startY;
+    const absDx     = Math.abs(dx);
+    const absDy     = Math.abs(dy);
     const committed = absDx >= ANIM_THRESHOLD && absDx > absDy * 1.5;
 
     if (committed) {
       e.preventDefault();
-      // Reset inline drag transform before commitAnswer re-animates from neutral
       scene.style.transition = 'none';
       scene.style.transform  = '';
       scene.style.opacity    = '';
@@ -1219,30 +1472,34 @@ function commitAnswer(correct) {
   });
 })();
 
-// ── Keyboard shortcuts (desktop) ───────────────────────────────
-document.addEventListener('keydown', function (e) {
-  const studying = document.getElementById('screen-study').classList.contains('active');
-  if (!studying) return;
-
-  if (e.code === 'Space') {
-    e.preventDefault();
-    flipCard();
-  } else if (e.code === 'ArrowRight') {
-    e.preventDefault();
-    if (isFlipped) commitAnswer(true);
-  } else if (e.code === 'ArrowLeft') {
-    e.preventDefault();
-    if (isFlipped) commitAnswer(false);
-  }
+// ── Keyboard shortcuts ─────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('screen-study').classList.contains('active')) return;
+  if      (e.code === 'Space')      { e.preventDefault(); flipCard(); }
+  else if (e.code === 'ArrowRight') { e.preventDefault(); if (isFlipped) commitAnswer(true); }
+  else if (e.code === 'ArrowLeft')  { e.preventDefault(); if (isFlipped) commitAnswer(false); }
 });
 
-const isTouch = ('ontouchstart' in window);
+// ── Button event listeners ─────────────────────────────────────
+document.getElementById('toggle-all-btn').addEventListener('click', toggleAll);
+document.getElementById('btn-back-to-load').addEventListener('click', () => showScreen('screen-load'));
+document.getElementById('start-btn').addEventListener('click', () => startStudy(null));
+document.getElementById('btn-goback').addEventListener('click', goBack);
+document.getElementById('btn-exit-study').addEventListener('click', exitStudy);
+document.getElementById('card').addEventListener('click', flipCard);
+document.getElementById('btn-hit').addEventListener('click',  () => commitAnswer(true));
+document.getElementById('btn-miss').addEventListener('click', () => commitAnswer(false));
+document.getElementById('btn-study-again').addEventListener('click',    () => startStudy(lastDeck.slice()));
+document.getElementById('btn-missed').addEventListener('click',         () => startStudy(missedCards.slice()));
+document.getElementById('btn-change-sections').addEventListener('click', () => showScreen('screen-select'));
+document.getElementById('btn-load-new').addEventListener('click',        () => showScreen('screen-load'));
 
-document.querySelectorAll('.tap-hint').forEach(el => {
-  el.childNodes[el.childNodes.length - 1].textContent =
-    isTouch ? ' Tap to reveal' : ' Click to reveal';
-});
+// ── Tap hint text ──────────────────────────────────────────────
+document.querySelector('.tap-hint-text').textContent =
+  'ontouchstart' in window ? 'Tap to reveal' : 'Click to reveal';
 
+// ── Init ───────────────────────────────────────────────────────
+renderDeckList();
 </script>
 </body>
 </html>
