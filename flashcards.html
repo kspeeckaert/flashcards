@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.21.20260326 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -28,6 +27,7 @@
       --shadow-lg:   0 8px 40px rgba(30,28,24,.13), 0 2px 8px rgba(30,28,24,.08);
       --font-ui:     'DM Sans', system-ui, sans-serif;
       --font-card:   'Lora', Georgia, serif;
+      --font-mono:   'Menlo','Monaco',monospace;
       --ease:        cubic-bezier(.4,0,.2,1);
     }
 
@@ -76,16 +76,6 @@
 
     .upload-section {
       width: 100%;
-    }
-
-    .watermark {
-      position: fixed;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: min(500px, 85vw);
-      pointer-events: none;
-      opacity: 0.045;
-      z-index: 0;
     }
 
     .upload-heading {
@@ -177,7 +167,7 @@
     }
     .format-hint[open] summary::after { transform: rotate(90deg); }
     .format-hint pre {
-      font-family: 'Menlo', 'Monaco', monospace;
+      font-family: var(--font-mono);
       font-size: 12px; line-height: 1.75;
       margin-top: 12px;
     }
@@ -483,7 +473,7 @@
     .face-text strong { font-weight: 600; font-style: normal; }
     .face-text em     { font-style: italic; }
     .face-text code {
-      font-family: 'Menlo', 'Monaco', monospace;
+      font-family: var(--font-mono);
       font-size: 0.82em;
       background: var(--accent-soft);
       padding: 0.1em 0.35em;
@@ -784,7 +774,7 @@
   </div>
 
 </div>
-<p class="version">v1.21.20260326</p>
+<p class="version">v1.22.20260326</p>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
@@ -822,6 +812,26 @@ const ANIM_FLY_MS    = 380;
 // Assigned in swipe IIFE
 let animScene   = null;
 let animOverlay = null;
+
+// ── Helpers ────────────────────────────────────────────────────
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── DOM refs ───────────────────────────────────────────────────
+const elCard        = document.getElementById('card');
+const elCardFront   = document.getElementById('card-front');
+const elCardBack    = document.getElementById('card-back');
+const elAnswerBtns  = document.getElementById('answer-btns');
+const elBtnGoBack   = document.getElementById('btn-goback');
+const elProgFill    = document.getElementById('prog-fill');
+const elProgText    = document.getElementById('prog-text');
+const elProgPct     = document.getElementById('prog-pct');
+const elScoreLive   = document.getElementById('score-live');
+const elDoneEmoji   = document.getElementById('done-emoji');
+const elDoneHeading = document.getElementById('done-heading');
+const elDoneSub     = document.getElementById('done-sub');
+const elDoneHit     = document.getElementById('done-hit');
+const elDoneMiss    = document.getElementById('done-miss');
+const elBtnMissed   = document.getElementById('btn-missed');
 
 // ── Storage ────────────────────────────────────────────────────
 const STORAGE_KEY = 'fc_decks';
@@ -870,67 +880,40 @@ function deleteDeck(id) {
 }
 
 // ── Deck library ───────────────────────────────────────────────
-function renderDeckList() {
-  const decks     = getDecks();
-  const library   = document.getElementById('deck-library');
-  const list      = document.getElementById('deck-list');
+const trashSVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+  <path d="M10 11v6"/><path d="M14 11v6"/>
+  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
 
-  if (!decks.length) {
-    library.style.display = 'none';
-    return;
-  }
+function renderDeckList() {
+  const decks   = getDecks();
+  const library = document.getElementById('deck-library');
+  const list    = document.getElementById('deck-list');
+
+  if (!decks.length) { library.style.display = 'none'; return; }
 
   library.style.display = '';
-  list.innerHTML = '';
-
-  decks.forEach(deck => {
-    const item  = document.createElement('div');
-    item.className  = 'deck-item';
-
-    const inner = document.createElement('div');
-    inner.className = 'deck-item-inner';
-
-    const content = document.createElement('div');
-    content.className = 'deck-item-content';
-
-    const nameEl = document.createElement('span');
-    nameEl.className   = 'deck-item-name';
-    nameEl.textContent = deck.name;
-
-    const metaEl = document.createElement('span');
-    metaEl.className   = 'deck-item-meta';
+  list.innerHTML = decks.map(deck => {
     const secLabel  = `${deck.sections} section${deck.sections !== 1 ? 's' : ''}`;
     const cardLabel = `${deck.cards} card${deck.cards !== 1 ? 's' : ''}`;
-    metaEl.textContent = `${secLabel} · ${cardLabel} · ${deck.createdAt}`;
+    return `<div class="deck-item" data-id="${deck.id}">
+      <div class="deck-item-inner">
+        <div class="deck-item-content">
+          <span class="deck-item-name">${esc(deck.name)}</span>
+          <span class="deck-item-meta">${secLabel} · ${cardLabel} · ${deck.createdAt}</span>
+        </div>
+        <button class="deck-delete-btn" title="Delete deck">${trashSVG}</button>
+      </div>
+      <button class="deck-delete-reveal">Delete</button>
+    </div>`;
+  }).join('');
 
-    content.appendChild(nameEl);
-    content.appendChild(metaEl);
-
-    // Desktop delete button
-    const delBtn = document.createElement('button');
-    delBtn.className = 'deck-delete-btn';
-    delBtn.title     = 'Delete deck';
-    delBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-      <path d="M10 11v6"/><path d="M14 11v6"/>
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>`;
-    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteDeck(deck.id); });
-
-    inner.appendChild(content);
-    inner.appendChild(delBtn);
-    inner.addEventListener('click', () => loadDeckById(deck.id));
-
-    // Mobile swipe-to-delete reveal button
-    const revBtn = document.createElement('button');
-    revBtn.className   = 'deck-delete-reveal';
-    revBtn.textContent = 'Delete';
-    revBtn.addEventListener('click', e => { e.stopPropagation(); deleteDeck(deck.id); });
-
-    item.appendChild(inner);
-    item.appendChild(revBtn);
-    list.appendChild(item);
+  list.querySelectorAll('.deck-item').forEach(item => {
+    const id = item.dataset.id;
+    item.querySelector('.deck-item-inner').addEventListener('click', () => loadDeckById(id));
+    item.querySelector('.deck-delete-btn').addEventListener('click', e => { e.stopPropagation(); deleteDeck(id); });
+    item.querySelector('.deck-delete-reveal').addEventListener('click', e => { e.stopPropagation(); deleteDeck(id); });
   });
 
   initDeckSwipe();
@@ -1145,8 +1128,7 @@ function parseMD(text, filename) {
 }
 
 // ── Card content rendering ─────────────────────────────────────
-function setCardContent(id, text) {
-  const el = document.getElementById(id);
+function setCardContent(el, text) {
   el.innerHTML = DOMPurify.sanitize(marked.parse(text));
   fitText(el);
 }
@@ -1165,46 +1147,27 @@ function fitText(el) {
 }
 
 // ── Section select screen ──────────────────────────────────────
+const chkSVG = `<svg viewBox="0 0 11 9" fill="none" stroke="currentColor"
+  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <polyline points="1 4.5 4 7.5 10 1"/></svg>`;
+
 function buildSelectScreen() {
   document.getElementById('deck-name').textContent = parsedDeck.name;
   const list = document.getElementById('section-list');
-  list.innerHTML = '';
+  list.innerHTML = parsedDeck.sections.map((sec, i) =>
+    `<label class="section-item checked" data-idx="${i}">
+      <input type="checkbox" checked>
+      <div class="chk">${chkSVG}</div>
+      <div class="sec-label">
+        <div class="name">${esc(sec.title)}</div>
+        <div class="count">${sec.cards.length} card${sec.cards.length !== 1 ? 's' : ''}</div>
+      </div>
+    </label>`
+  ).join('');
 
-  parsedDeck.sections.forEach((sec, i) => {
-    const el  = document.createElement('label');
-    el.className  = 'section-item checked';
-    el.dataset.idx = i;
-
-    const cb  = document.createElement('input');
-    cb.type   = 'checkbox';
-    cb.checked = true;
-
-    const chk = document.createElement('div');
-    chk.className = 'chk';
-    chk.innerHTML = `<svg viewBox="0 0 11 9" fill="none" stroke="currentColor"
-      stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="1 4.5 4 7.5 10 1"/></svg>`;
-
-    const labelDiv  = document.createElement('div');
-    labelDiv.className = 'sec-label';
-
-    const nameDiv   = document.createElement('div');
-    nameDiv.className  = 'name';
-    nameDiv.textContent = sec.title;
-
-    const countDiv  = document.createElement('div');
-    countDiv.className  = 'count';
-    countDiv.textContent = `${sec.cards.length} card${sec.cards.length !== 1 ? 's' : ''}`;
-
-    labelDiv.appendChild(nameDiv);
-    labelDiv.appendChild(countDiv);
-    el.appendChild(cb);
-    el.appendChild(chk);
-    el.appendChild(labelDiv);
-
-    el.addEventListener('click', () => toggleItem(el));
-    list.appendChild(el);
-  });
+  list.querySelectorAll('.section-item').forEach(el =>
+    el.addEventListener('click', () => toggleItem(el))
+  );
 
   refreshCount();
   refreshSaveToggle();
@@ -1284,41 +1247,39 @@ function renderCard() {
   const done        = cardIndex;
   const currentCard = activeDeck[cardIndex];
 
-  document.getElementById('prog-fill').style.width = (done / total * 100) + '%';
-  document.getElementById('prog-text').textContent = `${done + 1} / ${total}`;
-  document.getElementById('prog-pct').textContent  = `${Math.round(done / total * 100)} %`;
-  document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
+  elProgFill.style.width    = (done / total * 100) + '%';
+  elProgText.textContent    = `${done + 1} / ${total}`;
+  elProgPct.textContent     = `${Math.round(done / total * 100)} %`;
+  elScoreLive.textContent   = `✓ ${hits}  ✗ ${misses}`;
 
   const front = isReversed ? currentCard.back  : currentCard.front;
   const back  = isReversed ? currentCard.front : currentCard.back;
 
-  setCardContent('card-front', front);
+  setCardContent(elCardFront, front);
 
-  const cardEl    = document.getElementById('card');
-  const wasFlipped = cardEl.classList.contains('flipped');
+  const wasFlipped = elCard.classList.contains('flipped');
 
   if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
-  cardEl.classList.remove('flipped');
+  elCard.classList.remove('flipped');
   isFlipped = false;
-  document.getElementById('answer-btns').classList.remove('visible');
+  elAnswerBtns.classList.remove('visible');
 
   // Defer back content to avoid a flash during the flip-back transition
   if (wasFlipped) {
-    setTimeout(() => setCardContent('card-back', back), FLIP_MS);
+    setTimeout(() => setCardContent(elCardBack, back), FLIP_MS);
   } else {
-    setCardContent('card-back', back);
+    setCardContent(elCardBack, back);
   }
 }
 
 function flipCard() {
   isFlipped = !isFlipped;
-  document.getElementById('card').classList.toggle('flipped', isFlipped);
-  const btns = document.getElementById('answer-btns');
+  elCard.classList.toggle('flipped', isFlipped);
   if (isFlipped) {
-    btnShowTimeout = setTimeout(() => { btnShowTimeout = null; btns.classList.add('visible'); }, 250);
+    btnShowTimeout = setTimeout(() => { btnShowTimeout = null; elAnswerBtns.classList.add('visible'); }, 250);
   } else {
     if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
-    btns.classList.remove('visible');
+    elAnswerBtns.classList.remove('visible');
   }
 }
 
@@ -1351,7 +1312,7 @@ function goBack() {
 }
 
 function refreshBackBtn() {
-  document.getElementById('btn-goback').style.display = canGoBack ? '' : 'none';
+  elBtnGoBack.style.display = canGoBack ? '' : 'none';
 }
 
 function exitStudy() {
@@ -1364,19 +1325,18 @@ function exitStudy() {
 function showDone() {
   const total = activeDeck.length;
   const pct   = Math.round(hits / total * 100);
-  let emoji, heading;
+  const [emoji, heading] =
+    pct === 100 ? ['🎉', 'Perfect round!'] :
+    pct >= 80   ? ['⭐️', 'Great work!'] :
+    pct >= 50   ? ['💪', 'Keep going!'] :
+                  ['📖', 'More practice needed'];
 
-  if (pct === 100)    { emoji = '🎉'; heading = 'Perfect round!'; }
-  else if (pct >= 80) { emoji = '⭐️'; heading = 'Great work!'; }
-  else if (pct >= 50) { emoji = '💪'; heading = 'Keep going!'; }
-  else                { emoji = '📖'; heading = 'More practice needed'; }
-
-  document.getElementById('done-emoji').textContent    = emoji;
-  document.getElementById('done-heading').textContent  = heading;
-  document.getElementById('done-sub').textContent      = `${pct}% correct · ${total} card${total !== 1 ? 's' : ''}`;
-  document.getElementById('done-hit').textContent      = hits;
-  document.getElementById('done-miss').textContent     = misses;
-  document.getElementById('btn-missed').style.display  = misses > 0 ? '' : 'none';
+  elDoneEmoji.textContent   = emoji;
+  elDoneHeading.textContent = heading;
+  elDoneSub.textContent     = `${pct}% correct · ${total} card${total !== 1 ? 's' : ''}`;
+  elDoneHit.textContent     = hits;
+  elDoneMiss.textContent    = misses;
+  elBtnMissed.style.display = misses > 0 ? '' : 'none';
 
   showScreen('screen-done');
 }
@@ -1396,7 +1356,7 @@ function commitAnswer(correct) {
   isAnimating = true;
 
   // Hide answer buttons immediately on entry
-  document.getElementById('answer-btns').classList.remove('visible');
+  elAnswerBtns.classList.remove('visible');
 
   if (typeof navigator.vibrate === 'function') {
     navigator.vibrate(correct ? 20 : [10, 40, 10]);
@@ -1432,7 +1392,7 @@ function commitAnswer(correct) {
 
 // ── Swipe gestures (mobile) ────────────────────────────────────
 (function () {
-  animScene   = document.getElementById('card').parentElement;
+  animScene   = elCard.parentElement;
   animOverlay = document.getElementById('swipe-overlay');
 
   const scene   = animScene;
@@ -1459,13 +1419,13 @@ function commitAnswer(correct) {
     setTimeout(() => { scene.style.transition = ''; }, animated ? FLIP_MS : 0);
   }
 
-  document.getElementById('card').addEventListener('touchstart', e => {
+  elCard.addEventListener('touchstart', e => {
     startX   = e.changedTouches[0].clientX;
     startY   = e.changedTouches[0].clientY;
     dragging = false;
   }, { passive: true });
 
-  document.getElementById('card').addEventListener('touchmove', e => {
+  elCard.addEventListener('touchmove', e => {
     if (!isFlipped) return;
     const dx    = e.changedTouches[0].clientX - startX;
     const dy    = e.changedTouches[0].clientY - startY;
@@ -1489,7 +1449,7 @@ function commitAnswer(correct) {
     overlay.style.opacity = String(ratio);
   }, { passive: false });
 
-  document.getElementById('card').addEventListener('touchend', e => {
+  elCard.addEventListener('touchend', e => {
     if (!isFlipped || !dragging) { dragging = false; resetOverlay(false); return; }
     dragging = false;
 
@@ -1529,7 +1489,7 @@ document.getElementById('btn-back-to-load').addEventListener('click', () => show
 document.getElementById('start-btn').addEventListener('click', () => startStudy(null));
 document.getElementById('btn-goback').addEventListener('click', goBack);
 document.getElementById('btn-exit-study').addEventListener('click', exitStudy);
-document.getElementById('card').addEventListener('click', flipCard);
+elCard.addEventListener('click', flipCard);
 document.getElementById('btn-hit').addEventListener('click',  () => commitAnswer(true));
 document.getElementById('btn-miss').addEventListener('click', () => commitAnswer(false));
 document.getElementById('btn-study-again').addEventListener('click',    () => startStudy(lastDeck.slice()));
