@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.16.20260324 -->
+<!-- flashcards.html — version 1.17.20260326 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -499,6 +499,18 @@
       font-size: 11px; color: var(--ink-faint);
       pointer-events: none;
     }
+    .card-scene { will-change: transform; }
+    .face { contain: layout paint; }
+
+    .btn-exit {
+      position: relative;
+      padding: 10px 14px;
+    }
+    .btn-exit::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+    }
   </style>
 </head>
 <body>
@@ -677,6 +689,7 @@ let hits        = 0;
 let misses      = 0;
 let isFlipped   = false;
 let isReversed  = false;
+let isAnimating = false;
 
 // Go-back state
 let prevState   = null;   // {card, correct, hits, misses, cardIndex}
@@ -767,41 +780,62 @@ document.getElementById('file-input').addEventListener('change', function (e) {
   });
 })();
 
-// ── Markdown parser ────────────────────────────────────────────
+// ── Markdown parser (improved) ─────────────────
 function parseMD(text, filename) {
-  const lines    = text.split('\n');
+  const lines = text.split('\n');
   const sections = [];
-  let section    = null;
-  let card       = null;
-  let backBuf    = [];
+  let section = { title: 'No sections', cards: [] };
+  let hasExplicitSection = false;
+  let card = null;
+  let backBuf = [];
+  let skipped = 0;
 
   function saveCard() {
-    if (card && section) {
+    if (card) {
       const back = backBuf.join('\n').trim();
-      if (back) section.cards.push({ front: card, back });
+      if (back) {
+        section.cards.push({ front: card, back });
+      } else {
+        skipped++;
+      }
     }
-    card = null; backBuf = [];
+    card = null;
+    backBuf = [];
   }
 
   function saveSection() {
     saveCard();
-    if (section && section.cards.length) sections.push(section);
-    section = null;
+    if (section.cards.length) sections.push(section);
+    section = { title: 'No sections', cards: [] };
   }
 
-  for (const line of lines) {
-    if (line.startsWith('# ')) {
+  for (let rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (/^#\s+/.test(line)) {
+      hasExplicitSection = true;
       saveSection();
-      section = { title: line.slice(2).trim(), cards: [] };
-    } else if (line.startsWith('## ')) {
+      section = { title: line.replace(/^#\s+/, '').trim(), cards: [] };
+    }
+    else if (/^##\s+/.test(line)) {
       saveCard();
-      if (!section) section = { title: 'Cards', cards: [] };
-      card = line.slice(3).trim();
-    } else if (card !== null) {
-      backBuf.push(line.trimEnd());
+      card = line.replace(/^##\s+/, '').trim();
+    }
+    else if (card !== null) {
+      if (backBuf.length === 0 && !line) continue; // ignore leading empty
+      backBuf.push(rawLine.trimEnd());
     }
   }
+
   saveSection();
+
+  if (!hasExplicitSection && section.cards.length) {
+    sections.push(section);
+  }
+
+  if (skipped) {
+    alert(`${skipped} cards were skipped because they had no answer.`);
+  }
 
   return { filename, sections };
 }
@@ -816,19 +850,24 @@ function setCardContent(id, text) {
 }
 
 // ── Step 1: shrink font until content fits the face ────────────
-// Walks up from face-text to its .face parent, then steps the font size
-// down 1px at a time until scrollHeight ≤ clientHeight, or hits 11px floor.
+// ── fitText (binary search) ───────────────────
 function fitText(faceTextEl) {
   const face = faceTextEl.closest('.face');
   if (!face) return;
-  // Reset to the CSS-defined size first so we never stay at a shrunken size
-  // from a previous longer card
+
   faceTextEl.style.fontSize = '';
-  const computed = parseFloat(getComputedStyle(faceTextEl).fontSize);
-  let size = computed;
-  while (face.scrollHeight > face.clientHeight && size > 11) {
-    size -= 1;
-    faceTextEl.style.fontSize = size + 'px';
+  let min = 11;
+  let max = parseFloat(getComputedStyle(faceTextEl).fontSize);
+
+  while (min <= max) {
+    const mid = Math.floor((min + max) / 2);
+    faceTextEl.style.fontSize = mid + 'px';
+
+    if (face.scrollHeight > face.clientHeight) {
+      max = mid - 1;
+    } else {
+      min = mid + 1;
+    }
   }
 }
 
@@ -905,11 +944,6 @@ function startStudy(cardsOverride) {
 
   if (!activeDeck.length) return;
 
-  // Apply reversal
-  if (isReversed) {
-    activeDeck = activeDeck.map(c => ({ front: c.back, back: c.front }));
-  }
-
   lastDeck    = [...activeDeck];
   missedCards = [];
   cardIndex   = 0;
@@ -924,39 +958,37 @@ function startStudy(cardsOverride) {
 }
 
 // ── Step 7: deferred back-text to prevent flash during flip-back ──
+// ── Reverse logic (non-mutating) ───────────────
 function renderCard() {
   const total       = activeDeck.length;
   const done        = cardIndex;
   const currentCard = activeDeck[cardIndex]; // capture index now
 
-  document.getElementById('prog-fill').style.width  = (done / total * 100) + '%';
-  document.getElementById('prog-text').textContent  = `${done + 1} / ${total}`;
-  document.getElementById('prog-pct').textContent   = `${Math.round(done / total * 100)} %`;
+  document.getElementById('prog-fill').style.width = (done / total * 100) + '%';
+  document.getElementById('prog-text').textContent = `${done + 1} / ${total}`;
+  document.getElementById('prog-pct').textContent = `${Math.round(done / total * 100)} %`;
   document.getElementById('score-live').textContent = `✓ ${hits}  ✗ ${misses}`;
 
-  // Front is hidden while card is flipping back — safe to update immediately
-  setCardContent('card-front', currentCard.front);
+  const front = isReversed ? currentCard.back : currentCard.front;
+  const back  = isReversed ? currentCard.front : currentCard.back;
 
-  const card       = document.getElementById('card');
-  const wasFlipped = card.classList.contains('flipped');
+  setCardContent('card-front', front);
 
-  // Cancel any pending "show answer buttons" timeout from a recent flip,
-  // then force-hide them immediately so they can't bleed onto the next card.
+  const cardEl = document.getElementById('card');
+  const wasFlipped = cardEl.classList.contains('flipped');
+
   if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
-  card.classList.remove('flipped');
+  cardEl.classList.remove('flipped');
   isFlipped = false;
   document.getElementById('answer-btns').classList.remove('visible');
 
   if (wasFlipped) {
-    // Defer back-text update until the flip-back animation completes so the
-    // outgoing answer is never visible on the incoming card's back face.
-    setTimeout(() => {
-      setCardContent('card-back', currentCard.back);
-    }, FLIP_MS);
+    setTimeout(() => setCardContent('card-back', back), FLIP_MS);
   } else {
-    setCardContent('card-back', currentCard.back);
+    setCardContent('card-back', back);
   }
 }
+
 
 function flipCard() {
   isFlipped = !isFlipped;
@@ -1051,25 +1083,38 @@ function esc(s) {
 // ── Shared animation helpers (used by touch AND keyboard) ──────
 // commitAnswer: flies the card off in the given direction then calls answer().
 function commitAnswer(correct) {
-  if (!animScene) return answer(correct); // fallback if DOM not ready
+  if (isAnimating) return;
+  isAnimating = true;
+
+  if (navigator.vibrate) {
+    navigator.vibrate(correct ? 20 : [10, 40, 10]);
+  }
+
+  if (!animScene) {
+    isAnimating = false;
+    return answer(correct);
+  }
+
   const dir = correct ? 1 : -1;
+
   animOverlay.style.transition = 'none';
-  animOverlay.className        = 'swipe-overlay ' + (correct ? 'hit' : 'miss');
-  animOverlay.textContent      = correct ? 'Got it' : 'Miss';
-  animOverlay.style.opacity    = '1';
+  animOverlay.className = 'swipe-overlay ' + (correct ? 'hit' : 'miss');
+  animOverlay.textContent = correct ? 'Got it' : 'Miss';
+  animOverlay.style.opacity = '1';
 
   animScene.style.transition = `transform ${ANIM_FLY_MS}ms var(--ease), opacity ${ANIM_FLY_MS}ms ease`;
-  animScene.style.transform  = `translateX(${dir * ANIM_FLY_PX}px) rotateZ(${dir * ANIM_MAX_TILT}deg)`;
-  animScene.style.opacity    = '0';
+  animScene.style.transform = `translate3d(${dir * ANIM_FLY_PX}px,0,0) rotateZ(${dir * ANIM_MAX_TILT}deg)`;
+  animScene.style.opacity = '0';
 
   setTimeout(() => {
-    animOverlay.style.transition = '';
-    animOverlay.style.opacity    = '0';
-    animOverlay.className        = 'swipe-overlay';
-    animOverlay.textContent      = '';
-    animScene.style.transition   = 'none';
-    animScene.style.transform    = '';
-    animScene.style.opacity      = '';
+    animOverlay.style.opacity = '0';
+    animOverlay.className = 'swipe-overlay';
+    animOverlay.textContent = '';
+    animScene.style.transition = 'none';
+    animScene.style.transform = '';
+    animScene.style.opacity = '';
+
+    isAnimating = false;
     answer(correct);
   }, ANIM_FLY_MS);
 }
@@ -1189,6 +1234,13 @@ document.addEventListener('keydown', function (e) {
     e.preventDefault();
     if (isFlipped) commitAnswer(false);
   }
+});
+
+const isTouch = ('ontouchstart' in window);
+
+document.querySelectorAll('.tap-hint').forEach(el => {
+  el.childNodes[el.childNodes.length - 1].textContent =
+    isTouch ? ' Tap to reveal' : ' Click to reveal';
 });
 
 </script>
