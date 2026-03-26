@@ -208,9 +208,11 @@
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
+    @media (hover: hover) {
     .deck-item-inner:hover {
       border-color: var(--accent);
       background: var(--accent-soft);
+    }
     }
     .deck-item-content { flex: 1; min-width: 0; }
     .deck-item-name {
@@ -234,8 +236,10 @@
       transition: opacity .15s, color .15s, background .15s;
       -webkit-tap-highlight-color: transparent;
     }
+    @media (hover: hover) {
     .deck-item-inner:hover .deck-delete-btn { opacity: 1; }
     .deck-delete-btn:hover { color: var(--miss); background: var(--miss-soft); }
+    }
     /* Mobile delete — revealed by left swipe */
     .deck-delete-reveal {
       position: absolute;
