@@ -7,7 +7,6 @@ A single-page flashcards web application that:
 - Works locally (file://) and online
 - Supports desktop and touch devices
 
----
 
 ## Features
 
@@ -16,7 +15,6 @@ A single-page flashcards web application that:
 - Parsed entirely client-side
 - No server required
 
----
 
 ### 🧠 Flashcard System
 
@@ -32,7 +30,6 @@ Card back (multi-line supported)
 * `##` → Card front
 * Text below → Card back
 
----
 
 ### 🔀 Study Mode
 
@@ -43,7 +40,6 @@ Card back (multi-line supported)
   * ✅ Correct
   * ❌ Incorrect
 
----
 
 ### 🔁 Features
 
@@ -52,7 +48,6 @@ Card back (multi-line supported)
 * Retry incorrect cards
 * Single-level undo
 
----
 
 ### ⌨️ Controls
 
@@ -63,7 +58,6 @@ Card back (multi-line supported)
 | Mark incorrect | ← Arrow / Swipe left  |
 | Undo           | Button                |
 
----
 
 ### 📊 Progress Tracking
 
@@ -74,7 +68,6 @@ Card back (multi-line supported)
   * Correct (✓)
   * Incorrect (✗)
 
----
 
 ### 📱 Touch Support
 
@@ -82,7 +75,6 @@ Card back (multi-line supported)
 * Tap to flip
 * Responsive layout
 
----
 
 ### 🎨 UI Features
 
@@ -90,7 +82,6 @@ Card back (multi-line supported)
 * Swipe animations
 * Dynamic text resizing (`fitText`)
 
----
 
 ## Technical Details
 
@@ -103,7 +94,6 @@ Card back (multi-line supported)
   * `marked` (Markdown parsing)
   * `DOMPurify` (sanitization)
 
----
 
 ### ⚙️ Key Components
 
@@ -112,7 +102,6 @@ Card back (multi-line supported)
 * `commitAnswer()` → handles animations + scoring
 * `fitText()` → resizes content to fit card
 
----
 
 ### 🌐 Compatibility
 
@@ -121,7 +110,6 @@ Card back (multi-line supported)
 * Firefox
 * Desktop + mobile
 
----
 
 ### ⚠️ Limitations
 
@@ -130,7 +118,6 @@ Card back (multi-line supported)
 * No deck management
 * No multi-deck support
 
----
 
 ## Example File
 
@@ -143,8 +130,6 @@ Card back (multi-line supported)
 ## Goodbye
 さようなら
 ```
-
----
 
 ## Summary
 
