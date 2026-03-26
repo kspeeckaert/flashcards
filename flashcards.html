@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- flashcards.html — version 1.20.20260326 -->
+<!-- flashcards.html — version 1.21.20260326 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -64,27 +64,38 @@
 
     /* ── LOAD ─────────────────────────────────────────── */
     #screen-load {
-      padding-top: 52px;
+      padding-top: 40px;
       text-align: center;
     }
 
-    .load-icon {
-      width: 72px; height: 72px;
-      background: var(--accent-soft);
-      border-radius: 20px;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 24px;
-    }
-    .load-icon svg { width: 30px; height: 30px; color: var(--accent); }
-
-    #screen-load h1 {
+    .load-title {
       font-family: var(--font-card);
-      font-size: 26px; font-weight: 600;
-      margin-bottom: 8px;
+      font-size: 30px; font-weight: 600;
+      position: relative; z-index: 1;
+    }
+
+    .upload-section {
+      width: 100%;
+    }
+
+    .watermark {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(500px, 85vw);
+      pointer-events: none;
+      opacity: 0.045;
+      z-index: 0;
+    }
+
+    .upload-heading {
+      font-family: var(--font-card);
+      font-size: 20px; font-weight: 600;
+      margin-bottom: 6px;
     }
     #screen-load .sub {
       color: var(--ink-soft); font-size: 14px;
-      margin-bottom: 30px;
+      margin-bottom: 24px;
     }
 
     #file-input { display: none; }
@@ -137,22 +148,38 @@
     .btn-ghost:active { opacity: .8; transform: scale(.97); }
 
     .format-hint {
-      margin-top: 24px;
+      margin-top: 20px;
       background: var(--surface);
       border: 1px solid var(--ink-faint);
       border-radius: var(--radius);
-      padding: 18px 20px;
+      padding: 14px 20px;
       text-align: left;
       width: 100%;
     }
-    .format-hint h3 {
+    .format-hint summary {
       font-size: 11px; font-weight: 500;
       text-transform: uppercase; letter-spacing: .1em;
-      color: var(--ink-soft); margin-bottom: 10px;
+      color: var(--ink-soft);
+      cursor: pointer;
+      list-style: none;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 2px 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
+    .format-hint summary::-webkit-details-marker { display: none; }
+    .format-hint summary::after {
+      content: '›';
+      font-size: 18px; line-height: 1;
+      color: var(--ink-faint);
+      transition: transform .2s;
+      display: inline-block;
+    }
+    .format-hint[open] summary::after { transform: rotate(90deg); }
     .format-hint pre {
       font-family: 'Menlo', 'Monaco', monospace;
       font-size: 12px; line-height: 1.75;
+      margin-top: 12px;
     }
     .md-h1  { color: var(--accent); font-weight: bold; }
     .md-h2  { color: var(--hit); }
@@ -237,7 +264,7 @@
     }
 
     /* ── SELECT ───────────────────────────────────────── */
-    #screen-select { padding-top: 16px; }
+    #screen-select { padding-top: 10px; }
 
     .sec-header {
       width: 100%;
@@ -570,6 +597,22 @@
       font-size: 11px; color: var(--ink-faint);
       pointer-events: none;
     }
+
+    .load-title-wrap {
+      position: relative;
+      width: 100%;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .watermark {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 260px; height: auto;
+      opacity: 0.07;
+      pointer-events: none;
+      z-index: 0;
+    }
   </style>
 </head>
 <body>
@@ -577,18 +620,10 @@
 
   <!-- LOAD -->
   <div id="screen-load" class="screen active">
-    <p class="wordmark">Flashcards</p>
-    <div class="load-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="12" y1="18" x2="12" y2="12"/>
-        <line x1="9"  y1="15" x2="15" y2="15"/>
-      </svg>
+    <div class="load-title-wrap">
+      <svg class="watermark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><path d="M458.31 244.94c.15 2.121.096 3.822.453 5.43 3.398 15.304-2.974 27.024-13.457 37.325-1.274 1.252-2.15 2.928-3.122 4.465-4.3 6.802-9.116 12.623-18.496 9.929-2.35-.675-3.263.679-4.081 2.54-2.077 4.727-4.157 9.46-6.44 14.088-4.276 8.665-8.09 10.354-16.715 6.42-22.581-10.3-45.018-20.918-67.515-31.403-3.774-1.76-7.668-3.295-11.321-5.276-7.496-4.063-15.547-4.604-23.732-3.907-28.387 2.42-56.862 3.167-85.295 4.713-2.673.145-5.323.107-7.857-.997-1.715-.748-3.655-1.574-4.292-3.253-1.907-5.022-5.503-9.025-7.83-13.729-1.315-2.657-3.482-5.118-4.28-7.484-1.951-5.794-5.463-11.244-6.106-17.163-.447-4.117 2.034-8.648 3.58-12.857 1.471-4.006 1.326-6.954-3.044-9.024-1.873-.887-3.384-2.675-4.856-4.244-2.984-3.18-3.22-6.613-1.082-10.514 4.002-7.3 7.426-14.934 11.698-22.065 3.391-5.66 3.706-11.424 3.066-17.657-.935-9.101-1.547-18.236-2.268-27.359-.065-.817-.248-1.946.184-2.433 4.318-4.87 4.482-11.935 9.198-16.692 3.722-3.754 6.658-8.232 11.998-10.115 1.797-.634 2.19-2.832 3.092-4.407 3.159-5.513 6.541-7.367 12.809-6.089 3.27.667 5.022-.46 6.559-2.986 2.337-3.842 4.638-7.715 7.187-11.416 4.476-6.5 8.788-7.654 15.869-4.382 17.844 8.245 35.634 16.607 53.516 24.77 7.267 3.317 14.732 6.2 22.076 9.354 4.407 1.892 9.044 1.976 13.709 2.062 25.499.47 50.981-.423 76.463-1.061 5.643-.142 11.276-.892 16.951-.855 10.424.068 18.665 5.956 21.54 15.895.95 3.286 2.268 6.12 4.667 8.615 3.425 3.56 4.79 7.7 3.541 12.825-1.376 5.65-2.007 11.476-3.099 17.2-.527 2.765-.03 4.821 2.575 6.342 1.707.995 3.234 2.357 4.686 3.72 4.938 4.64 5.818 8.741 2.747 14.795-3.164 6.236-6.365 12.497-10.128 18.376-4.552 7.11-4.744 14.696-3.83 22.594.21 1.818.446 3.633.683 5.91m-14.597-121.404c-2.271-1.293-4.766-1.405-7.28-1.331-7.825.23-15.649.553-23.475.723-47.823 1.04-95.639.367-143.452-.7-21.137-.47-42.275-1.368-63.412-.092-7.884.475-12.602 5.386-12.736 13.114-.747 43.147-1.493 86.295-2.21 129.443-.143 8.587 4.02 13.05 12.53 13.274 11.657.307 23.32.648 34.98.603 30.16-.116 60.316.12 90.48-.345 37.824-.582 75.661-.352 113.493-.507 6.827-.028 10.205-2.97 10.099-9.488-.718-43.983 1.247-87.983-.852-131.962-.279-5.846-2.25-9.894-8.165-12.732m-89.565 165.888c-11.664-1.002-23.075-4.168-36.11-4.487 1.731 1.088 2.35 1.575 3.046 1.9 17.945 8.402 35.887 16.808 53.853 25.165 8.152 3.791 16.343 7.499 24.537 11.197 2.744 1.239 5.595 1.752 7.704-1.04 4.747-6.283 7.402-13.552 10.273-21.505-21.235-3.797-41.827-7.479-63.303-11.23m-95.737-181.582 57.437 11.457c-.513-1.394-.538-1.847-.734-1.94a55204 55204 0 0 0-66.375-31.247c-2.762-1.299-5.238-.672-7.328 1.374-4.086 3.998-6.593 9-9.52 14.532 8.753 2.947 17.245 4.178 26.52 5.824m112.311 179.082h-7.27c2.933 1.467 5.942 2.216 8.986 2.77 17.178 3.122 34.386 6.083 51.537 9.34 7.82 1.486 12.478-1.2 14.898-9.917-22.445-2.322-44.846-1.85-68.15-2.193M175.38 218.018c2.088 2.978 5.138 4.74 8.294 6.248 2.624 1.254 3.23 2.932 2.332 5.63-1.68 5.054-3.136 10.182-4.73 15.265-.517 1.644-1.1 3.42.42 4.649 3.065 2.477 3.6 5.763 3.663 9.36.019 1.066.12 2.442 2.332 2.156.034-24.721 1.46-49.43.954-74.957-4.782 9.05-9.197 17.388-13.592 25.737-.913 1.736-.926 3.513.327 5.912m214.12 63.296h-50.854l-.018 1.208c1.625.133 3.252.249 4.875.4 16.936 1.581 33.926.276 50.88.974q22.18.915 44.363 1.738c3.383.125 6.518-.411 8.294-4.322-19.113 0-37.826 0-57.54.002M241.963 117.59c7.636.636 15.273 1.254 22.97.567-5.73-1.646-11.622-2.666-17.232-4.532-8.602-2.862-16.782-6.996-25.996-7.906-5.408-.535-8.442 1.68-9.572 7.59 9.656 1.359 19.303 2.716 29.83 4.28m42.154 164.144c-2.47-.143-4.939-.405-7.409-.41-23.947-.044-47.894-.046-71.84-.06h-6.722c1.75 4.686 5.26 4.9 8.731 4.79 12.63-.404 25.261-.82 37.882-1.447 13.102-.652 26.191-1.555 39.358-2.873m176.756-99.291-3.702 33.666c4.171-5.733 7.52-11.621 10.56-17.665 4.142-8.234 2.413-12.487-6.858-16.001m.048-23.881c.678-4.737 2.567-9.744-3.197-13.835-1.636 17.067-1.404 33.464-1.209 49.868.76-11.807 2.508-23.488 4.406-36.033m-204.537-48.087-16.062-2.66c13.669 5.894 28.043 7.94 42.665 8.747-8.317-3.238-17.204-3.952-26.603-6.087m-39.198 6.407c-4.146-.336-8.404-1.476-12.902 1.788 5.266-.283 9.697-.442 14.109-.818.99-.084.17-.55-.178-.737-.14-.075-.317-.081-1.029-.233m-28.284 31.245.637 8.328q.183-.016.365-.033V141.46c-2.131 2.313-1.326 4.128-1.002 6.667"/></svg>
+      <h1 class="load-title">Flashcards</h1>
     </div>
-    <h1>Load a deck</h1>
-    <p class="sub">Pick a Markdown (.md) file to get started</p>
 
     <!-- Saved deck library (hidden until decks exist) -->
     <div class="deck-library" id="deck-library" style="display:none">
@@ -596,22 +631,27 @@
       <div class="deck-list" id="deck-list"></div>
     </div>
 
-    <input type="file" id="file-input" accept=".md,.markdown,.txt">
-    <div class="drop-zone" id="drop-zone">
-      <button class="btn-primary" id="btn-choose-file">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        Choose file…
-      </button>
-      <span class="drop-hint">or drag &amp; drop a .md file here</span>
+    <div class="upload-section">
+      <h2 class="upload-heading">Load a deck</h2>
+      <p class="sub">Upload a markdown deck to get started</p>
+
+      <input type="file" id="file-input" accept=".md,.markdown,.txt">
+      <div class="drop-zone" id="drop-zone">
+        <button class="btn-primary" id="btn-choose-file">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Choose file…
+        </button>
+        <span class="drop-hint">or drag &amp; drop a .md file here</span>
+      </div>
     </div>
 
-    <div class="format-hint">
-      <h3>Expected format</h3>
+    <details class="format-hint">
+      <summary>Sample format</summary>
       <pre><span class="md-h1"># My Japanese Deck</span>
 
 <span class="md-h2">## Chapter 1: Greetings</span>
@@ -626,7 +666,7 @@
 
 <span class="md-h3">### 食べる</span>
 <span class="md-body">to eat</span></pre>
-    </div>
+    </details>
   </div>
 
   <!-- SELECT -->
@@ -744,7 +784,7 @@
   </div>
 
 </div>
-<p class="version">v1.20.20260326</p>
+<p class="version">v1.21.20260326</p>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
@@ -1006,7 +1046,7 @@ function loadFile(file) {
     const deck = parseMD(raw, file.name);
     if (!deck.sections.length) {
       parsedDeck = null;
-      alert('No cards found.\n\nMake sure your file uses:\n  #   — deck name\n  ##  — section\n  ### — card front\nfollowed by the answer on the next line.');
+      alert('Could not parse the file format. Check the sample for the expected layout.');
       return;
     }
     parsedDeck          = deck;
