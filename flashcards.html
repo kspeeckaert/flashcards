@@ -494,6 +494,15 @@
     /* Suppress the wrapping <p> on simple single-line fronts */
     .face-text > p:only-child { display: inline; }
 
+    /* KaTeX display math — prevent overflow on mobile */
+    .face-text .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-width: 100%;
+      margin: 0.4em 0;
+    }
+    .face-text .katex { font-size: 1em; }
+
     .tap-hint {
       font-size: 12px; color: var(--ink-faint);
       display: flex; align-items: center; gap: 5px;
@@ -778,10 +787,13 @@
   </div>
 
 </div>
-<p class="version">v1.22.20260326</p>
+<p class="version">v1.23.20260328</p>
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script>
 // ── marked config ──────────────────────────────────────────────
 marked.use({ breaks: true });
@@ -1134,10 +1146,21 @@ function parseMD(text, filename) {
 // ── Card content rendering ─────────────────────────────────────
 function setCardContent(el, text) {
   el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  if (typeof renderMathInElement !== 'undefined') {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$',  right: '$',  display: false }
+      ],
+      throwOnError: false
+    });
+  }
   fitText(el);
 }
 
 function fitText(el) {
+  // Skip aggressive scaling when display math is present — KaTeX manages its own sizing
+  if (el.querySelector('.katex-display')) return;
   el.style.fontSize = '';
   let lo = 11;
   let hi = parseFloat(getComputedStyle(el).fontSize);

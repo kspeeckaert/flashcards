@@ -83,3 +83,11 @@ to come
 
 ### する
 to do
+
+## Chapter 4: Math Examples
+
+### Inline math: Euler's identity
+$e^{i\pi} + 1 = 0$
+
+### Display math: Gaussian integral
+$$\int_{-\infty}^{\infty} e^{-x^2}\, dx = \sqrt{\pi}$$

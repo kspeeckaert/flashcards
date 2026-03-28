@@ -34,7 +34,11 @@ to eat
 - `#` — deck name
 - `##` — section
 - `###` — card front
-- Lines below `###` — card back (supports Markdown: bold, italic, code, lists)
+- Lines below `###` — card back (supports Markdown: bold, italic, code, lists; and LaTeX math)
+
+Math is rendered via KaTeX:
+- Inline: `$E = mc^2$`
+- Display block: `$$\int_{-\infty}^{\infty} e^{-x^2}\, dx = \sqrt{\pi}$$`
 
 Cards without an answer are skipped with a warning.
 
