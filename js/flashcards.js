@@ -11,6 +11,7 @@ let hits              = 0;
 let misses            = 0;
 let isFlipped         = false;
 let isReversed        = false;
+let isShuffled        = true;
 let isAnimating       = false;
 let prevState         = null;
 let canGoBack         = false;
@@ -251,6 +252,11 @@ function showScreen(id) {
 }
 
 // ── Toggles (reverse + save) ───────────────────────────────────
+document.getElementById('shuffle-toggle').addEventListener('click', () => {
+  isShuffled = !isShuffled;
+  document.getElementById('shuffle-knob').classList.toggle('on', isShuffled);
+});
+
 document.getElementById('reverse-toggle').addEventListener('click', () => {
   isReversed = !isReversed;
   document.getElementById('rev-knob').classList.toggle('on', isReversed);
@@ -523,13 +529,13 @@ function refreshSaveToggle() {
 // ── Study ──────────────────────────────────────────────────────
 function startStudy(cardsOverride) {
   if (cardsOverride) {
-    activeDeck = shuffle([...cardsOverride]);
+    activeDeck = isShuffled ? shuffle([...cardsOverride]) : [...cardsOverride];
   } else {
     const items   = [...document.querySelectorAll('.section-item')];
     const checked = items.filter(i => i.querySelector('input').checked);
     if (!checked.length) return;
     const cards   = checked.flatMap(el => parsedDeck.sections[+el.dataset.idx].cards);
-    activeDeck    = shuffle([...cards]);
+    activeDeck    = isShuffled ? shuffle([...cards]) : [...cards];
   }
 
   if (!activeDeck.length) return;
