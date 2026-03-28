@@ -414,7 +414,6 @@
       width: 100%;
       perspective: 900px;
       margin-bottom: 20px;
-      will-change: transform;
     }
     .card {
       width: 100%; height: 260px;

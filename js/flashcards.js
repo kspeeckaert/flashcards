@@ -199,16 +199,17 @@ function initDeckSwipe() {
     });
   });
 
-  // Tap outside to collapse any revealed item
-  document.addEventListener('touchstart', e => {
-    document.querySelectorAll('.deck-item-inner').forEach(inner => {
-      if (!inner.closest('.deck-item').contains(e.target)) {
-        inner.style.transition = 'transform .25s var(--ease)';
-        inner.style.transform  = '';
-      }
-    });
-  }, { passive: true });
 }
+
+// Tap outside to collapse any revealed deck item — registered once at startup
+document.addEventListener('touchstart', e => {
+  document.querySelectorAll('.deck-item-inner').forEach(inner => {
+    if (!inner.closest('.deck-item').contains(e.target)) {
+      inner.style.transition = 'transform .25s var(--ease)';
+      inner.style.transform  = '';
+    }
+  });
+}, { passive: true });
 
 // ── Screens ────────────────────────────────────────────────────
 function showScreen(id) {
@@ -310,7 +311,7 @@ function parseMD(text, filename) {
     const imgBlock = fmBlock.match(/^images:\r?\n((?:[ \t]+\S[^\r\n]*(?:\r?\n|$))*)/m);
     if (imgBlock) {
       for (const line of imgBlock[1].split('\n')) {
-        const m = line.match(/^[ \t]+([\w][\w-]*):\s*(.+)/);
+        const m = line.match(/^[ \t]+([a-zA-Z_][\w-]*):\s*(.+)/);
         if (m) images[m[1]] = m[2].trim();
       }
     }
@@ -365,7 +366,7 @@ function parseMD(text, filename) {
     } else if (card !== null) {
       if (!backBuf.length && !line) continue;  // skip leading blank lines
       // Detect image reference comment — strip from back text, record key
-      const imgRef = rawLine.match(/<!--\s*img:([\w][\w-]*)\s*-->/);
+      const imgRef = rawLine.match(/<!--\s*img:([a-zA-Z_][\w-]*)\s*-->/);
       if (imgRef) { cardImgKey = imgRef[1]; continue; }
       backBuf.push(rawLine.trimEnd());
     }
@@ -404,12 +405,17 @@ function fitText(el) {
   // Skip aggressive scaling when display math is present — KaTeX manages its own sizing
   if (el.querySelector('.katex-display')) return;
   el.style.fontSize = '';
+  // If content already fits at the natural size, leave the CSS value untouched
+  // (reading scrollHeight/clientHeight here is one reflow, but saves the loop)
+  if (el.scrollHeight <= el.clientHeight) return;
+  const naturalPx = parseFloat(getComputedStyle(el).fontSize);
   let lo = 11;
-  let hi = parseFloat(getComputedStyle(el).fontSize);
+  let hi = Math.max(lo, Math.floor(naturalPx));
+  const h = el.clientHeight; // read once — doesn't change during the loop
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     el.style.fontSize = mid + 'px';
-    if (el.scrollHeight > el.clientHeight) hi = mid - 1;
+    if (el.scrollHeight > h) hi = mid - 1;
     else lo = mid + 1;
   }
   el.style.fontSize = hi + 'px';
@@ -652,6 +658,7 @@ function commitAnswer(correct) {
   animOverlay.textContent      = correct ? 'Got it' : 'Miss';
   animOverlay.style.opacity    = '1';
 
+  animScene.style.willChange  = 'transform, opacity';
   animScene.style.transition = `transform ${ANIM_FLY_MS}ms var(--ease), opacity ${ANIM_FLY_MS}ms ease`;
   animScene.style.transform  = `translate3d(${dir * ANIM_FLY_PX}px,0,0) rotateZ(${dir * ANIM_MAX_TILT}deg)`;
   animScene.style.opacity    = '0';
@@ -660,9 +667,10 @@ function commitAnswer(correct) {
     animOverlay.style.opacity = '0';
     animOverlay.className     = 'swipe-overlay';
     animOverlay.textContent   = '';
-    animScene.style.transition = 'none';
-    animScene.style.transform  = '';
-    animScene.style.opacity    = '';
+    animScene.style.transition  = 'none';
+    animScene.style.willChange  = '';
+    animScene.style.transform   = '';
+    animScene.style.opacity     = '';
     isAnimating = false;
     answer(correct);
   }, ANIM_FLY_MS);
