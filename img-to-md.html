@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image → Markdown · Flashcards</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f7f4ee;
+      --surface:     #ffffff;
+      --ink:         #1e1c18;
+      --ink-soft:    #6b6760;
+      --ink-faint:   #c4bfb4;
+      --accent:      #3d5a80;
+      --accent-soft: #e8edf4;
+      --hit:         #2d6a4f;
+      --hit-soft:    #e8f4ef;
+      --miss:        #9b2335;
+      --miss-soft:   #faeaec;
+      --radius:      14px;
+      --shadow:      0 2px 16px rgba(30,28,24,.08), 0 1px 3px rgba(30,28,24,.06);
+      --shadow-lg:   0 8px 40px rgba(30,28,24,.13), 0 2px 8px rgba(30,28,24,.08);
+      --font-ui:     'DM Sans', system-ui, sans-serif;
+      --font-card:   'Lora', Georgia, serif;
+      --font-mono:   'Menlo','Monaco',monospace;
+      --ease:        cubic-bezier(.4,0,.2,1);
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 64px;
+    }
+
+    .wordmark {
+      font-family: var(--font-card);
+      font-size: 13px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 8px;
+    }
+
+    .page-title {
+      font-family: var(--font-card);
+      font-size: 26px; font-weight: 600;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .page-sub {
+      font-size: 14px; color: var(--ink-soft);
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .main {
+      width: 100%; max-width: 600px;
+      display: flex; flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Drop zone ─────────────────────────────────────── */
+    .drop-zone {
+      width: 100%;
+      border: 2px dashed var(--ink-faint);
+      border-radius: var(--radius);
+      padding: 32px 20px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+      transition: border-color .18s var(--ease), background .18s var(--ease);
+      cursor: default;
+    }
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 10px;
+      padding: 13px 26px;
+      font-family: var(--font-ui); font-size: 15px; font-weight: 500;
+      cursor: pointer;
+      transition: opacity .18s var(--ease), transform .18s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active { opacity: .8; transform: scale(.97); }
+    .btn-primary:disabled { opacity: .4; pointer-events: none; }
+
+    .drop-hint {
+      font-size: 12px; color: var(--ink-faint);
+      pointer-events: none;
+      text-align: center;
+    }
+
+    #file-input { display: none; }
+
+    /* ── Image list ────────────────────────────────────── */
+    .img-list {
+      display: flex; flex-direction: column; gap: 12px;
+    }
+
+    .img-item {
+      background: var(--surface);
+      border: 1.5px solid var(--ink-faint);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+
+    .img-thumb {
+      width: 56px; height: 56px; flex-shrink: 0;
+      border-radius: 8px;
+      object-fit: contain;
+      background: var(--bg);
+      border: 1px solid var(--ink-faint);
+    }
+
+    .img-body {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .img-meta {
+      font-size: 12px; color: var(--ink-soft);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .key-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .key-label {
+      font-size: 12px; color: var(--ink-soft); flex-shrink: 0;
+    }
+
+    .key-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1.5px solid var(--ink-faint);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-family: var(--font-mono);
+      font-size: 13px; color: var(--ink);
+      transition: border-color .15s;
+      min-width: 0;
+    }
+    .key-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .key-input.invalid {
+      border-color: var(--miss);
+    }
+
+    .snippet-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .snippet-code {
+      flex: 1; min-width: 0;
+      font-family: var(--font-mono);
+      font-size: 12px; color: var(--ink-soft);
+      background: var(--bg);
+      border: 1px solid var(--ink-faint);
+      border-radius: 6px;
+      padding: 6px 10px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .btn-copy-small {
+      flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--accent-soft); color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-family: var(--font-ui); font-size: 12px; font-weight: 500;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-copy-small:hover   { background: var(--accent); color: #fff; }
+    .btn-copy-small:active  { opacity: .7; }
+    .btn-copy-small.copied  { background: var(--hit-soft); color: var(--hit); border-color: var(--hit); }
+
+    .btn-remove {
+      flex-shrink: 0; align-self: flex-start;
+      width: 28px; height: 28px;
+      background: none; border: none;
+      border-radius: 6px;
+      color: var(--ink-faint);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: color .15s, background .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-remove:hover { color: var(--miss); background: var(--miss-soft); }
+
+    /* ── Output panel ──────────────────────────────────── */
+    .output-panel {
+      background: var(--surface);
+      border: 1.5px solid var(--ink-faint);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    .output-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .output-title {
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--ink-soft);
+    }
+
+    .output-pre {
+      background: var(--bg);
+      border: 1px solid var(--ink-faint);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: var(--font-mono);
+      font-size: 12px; line-height: 1.7;
+      color: var(--ink);
+      overflow-x: auto;
+      white-space: pre;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .output-note {
+      font-size: 12px; color: var(--ink-soft);
+      line-height: 1.5;
+    }
+
+    .btn-copy-big {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 10px;
+      padding: 13px 26px;
+      font-family: var(--font-ui); font-size: 15px; font-weight: 500;
+      cursor: pointer;
+      transition: opacity .18s var(--ease), background .18s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+      width: 100%;
+    }
+    .btn-copy-big:active { opacity: .8; }
+    .btn-copy-big.copied { background: var(--hit); }
+
+    /* ── Empty state ───────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 10px 0 4px;
+      font-size: 14px; color: var(--ink-faint);
+    }
+
+    /* ── Duplicate warning ─────────────────────────────── */
+    .key-warning {
+      font-size: 11px; color: var(--miss);
+      display: none;
+    }
+    .key-warning.visible { display: block; }
+
+    .version {
+      position: fixed; bottom: 14px; left: 0; right: 0;
+      text-align: center;
+      font-size: 11px; color: var(--ink-faint);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <p class="wordmark">Flashcards</p>
+  <h1 class="page-title">Image → Markdown</h1>
+  <p class="page-sub">Embed images into your flashcard deck as self-contained base64 data.</p>
+
+  <div class="main">
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <button class="btn-primary" id="btn-choose">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Choose images…
+      </button>
+      <span class="drop-hint">PNG, JPEG, WebP, GIF, SVG · drag &amp; drop multiple files</span>
+    </div>
+    <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple>
+
+    <!-- Image list -->
+    <div class="img-list" id="img-list"></div>
+
+    <!-- Output -->
+    <div class="output-panel" id="output-panel" style="display:none">
+      <div class="output-header">
+        <span class="output-title">Frontmatter block</span>
+      </div>
+      <pre class="output-pre" id="output-pre"></pre>
+      <p class="output-note">
+        Paste this block at the very top of your <code>.md</code> file, before the <code># Deck Name</code> line.
+        Then add <code>&lt;!-- img:key --&gt;</code> anywhere in a card's answer body to attach that image.
+      </p>
+      <button class="btn-copy-big" id="btn-copy-all">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Copy frontmatter
+      </button>
+    </div>
+
+  </div>
+</div>
+<p class="version">v1.0.20260328</p>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+// Each entry: { id, key, dataUri, filename, size, type }
+const entries = [];
+let nextId    = 1;
+
+const VALID_TYPES = ['image/png','image/jpeg','image/webp','image/gif','image/svg+xml'];
+const KEY_RE      = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
+
+// ── Helpers ────────────────────────────────────────────────────
+function filenameToKey(name) {
+  return name
+    .replace(/\.[^.]+$/, '')           // strip extension
+    .replace(/[^a-zA-Z0-9_-]/g, '_')  // invalid chars → underscore
+    .replace(/^([^a-zA-Z_])/, '_$1')  // ensure valid start
+    .slice(0, 40)
+    || 'image';
+}
+
+function formatBytes(n) {
+  if (n < 1024)       return n + ' B';
+  if (n < 1024*1024)  return (n/1024).toFixed(1) + ' KB';
+  return (n/1024/1024).toFixed(2) + ' MB';
+}
+
+function allKeys() {
+  return entries.map(e => e.key);
+}
+
+function isDuplicateKey(key, excludeId) {
+  return entries.some(e => e.id !== excludeId && e.key === key);
+}
+
+// ── File reading ───────────────────────────────────────────────
+function readFiles(files) {
+  for (const file of files) {
+    if (!VALID_TYPES.includes(file.type)) {
+      alert(`"${file.name}" is not a supported image type. Use PNG, JPEG, WebP, GIF, or SVG.`);
+      continue;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const entry = {
+        id:       nextId++,
+        key:      uniqueKey(filenameToKey(file.name)),
+        dataUri:  ev.target.result,
+        filename: file.name,
+        size:     file.size,
+        type:     file.type
+      };
+      entries.push(entry);
+      renderList();
+      renderOutput();
+    };
+    reader.onerror = () => alert(`Could not read "${file.name}".`);
+    reader.readAsDataURL(file);
+  }
+}
+
+function uniqueKey(base) {
+  let key = base, n = 2;
+  while (allKeys().includes(key)) key = base + '_' + n++;
+  return key;
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('img-list');
+  if (!entries.length) {
+    list.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = entries.map(e => `
+    <div class="img-item" data-id="${e.id}">
+      <img class="img-thumb" src="${e.dataUri}" alt="">
+      <div class="img-body">
+        <span class="img-meta">${escHtml(e.filename)} · ${formatBytes(e.size)}</span>
+        <div class="key-row">
+          <span class="key-label">Key</span>
+          <input class="key-input" type="text" value="${escAttr(e.key)}"
+                 spellcheck="false" autocomplete="off"
+                 data-id="${e.id}" aria-label="Image key name">
+        </div>
+        <span class="key-warning" id="warn-${e.id}">Key must start with a letter or _ and contain only letters, digits, _ or -</span>
+        <div class="snippet-row">
+          <code class="snippet-code" id="snip-${e.id}">&lt;!-- img:${escHtml(e.key)} --&gt;</code>
+          <button class="btn-copy-small" data-copy-snip="${e.id}">Copy</button>
+        </div>
+      </div>
+      <button class="btn-remove" data-remove="${e.id}" title="Remove">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+
+  // Key input handlers
+  list.querySelectorAll('.key-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const id  = +input.dataset.id;
+      const key = input.value.trim();
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+
+      const warn = document.getElementById(`warn-${id}`);
+      const valid = KEY_RE.test(key) && !isDuplicateKey(key, id);
+
+      input.classList.toggle('invalid', !valid);
+      if (warn) warn.classList.toggle('visible', !KEY_RE.test(key) || isDuplicateKey(key, id));
+
+      if (valid) {
+        entry.key = key;
+        const snip = document.getElementById(`snip-${id}`);
+        if (snip) snip.textContent = `<!-- img:${key} -->`;
+        renderOutput();
+      }
+    });
+  });
+
+  // Remove buttons
+  list.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = +btn.dataset.remove;
+      const idx = entries.findIndex(e => e.id === id);
+      if (idx !== -1) entries.splice(idx, 1);
+      renderList();
+      renderOutput();
+    });
+  });
+
+  // Snippet copy buttons
+  list.querySelectorAll('[data-copy-snip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id    = +btn.dataset.copySnip;
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+      copyText(`<!-- img:${entry.key} -->`, btn);
+    });
+  });
+}
+
+function renderOutput() {
+  const panel = document.getElementById('output-panel');
+  const pre   = document.getElementById('output-pre');
+
+  if (!entries.length) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  const lines = ['---', 'images:'];
+  for (const e of entries) {
+    lines.push(`  ${e.key}: ${e.dataUri}`);
+  }
+  lines.push('---');
+
+  pre.textContent     = lines.join('\n');
+  panel.style.display = '';
+}
+
+// ── Copy helper ────────────────────────────────────────────────
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 1800);
+  }).catch(() => alert('Could not copy. Please select and copy manually.'));
+}
+
+// ── Escape helpers ─────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+  return s.replace(/"/g,'&quot;');
+}
+
+// ── Drop zone ──────────────────────────────────────────────────
+(function () {
+  const zone = document.getElementById('drop-zone');
+  ['dragover','drop'].forEach(e => document.addEventListener(e, ev => ev.preventDefault()));
+  zone.addEventListener('dragenter',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragover',   e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave',  e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop',       e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    readFiles([...e.dataTransfer.files]);
+  });
+})();
+
+// ── File input ─────────────────────────────────────────────────
+document.getElementById('btn-choose').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', function () {
+  readFiles([...this.files]);
+  this.value = '';
+});
+
+// ── Copy all ───────────────────────────────────────────────────
+document.getElementById('btn-copy-all').addEventListener('click', function () {
+  const text = document.getElementById('output-pre').textContent;
+  copyText(text, this);
+});
+</script>
+</body>
+</html>

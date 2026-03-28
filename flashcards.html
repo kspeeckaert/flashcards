@@ -510,13 +510,13 @@
       margin-top: 14px;
     }
 
+    /* Answer buttons: always occupy space, fade in/out only (no translateY) */
     .answer-btns {
       width: 100%; display: flex; gap: 12px;
       opacity: 0; pointer-events: none;
-      transform: translateY(10px);
-      transition: opacity .22s ease, transform .22s ease;
+      transition: opacity .22s ease;
     }
-    .answer-btns.visible { opacity: 1; pointer-events: all; transform: translateY(0); }
+    .answer-btns.visible { opacity: 1; pointer-events: all; }
 
     .btn-hit, .btn-miss {
       flex: 1; padding: 15px;
@@ -529,6 +529,21 @@
     .btn-hit  { background: var(--hit-soft);  color: var(--hit); }
     .btn-miss { background: var(--miss-soft); color: var(--miss); }
     .btn-hit:active, .btn-miss:active { opacity: .75; transform: scale(.97); }
+
+    /* ── Card image panel ─────────────────────────────── */
+    #card-image-panel {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    #card-image {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
 
     /* ── Swipe overlay ────────────────────────────────── */
     .swipe-overlay {
@@ -663,7 +678,8 @@
 <span class="md-body">hello</span>
 
 <span class="md-h3">### さようなら</span>
-<span class="md-body">goodbye</span>
+<span class="md-body">goodbye
+&lt;!-- img:wave_hand --&gt;</span>
 
 <span class="md-h2">## Chapter 2: Food &amp; Drink</span>
 
@@ -760,6 +776,9 @@
       <button class="btn-miss" id="btn-miss">✗  Miss</button>
       <button class="btn-hit"  id="btn-hit">✓  Got it</button>
     </div>
+    <div id="card-image-panel" style="display:none">
+      <img id="card-image" alt="">
+    </div>
   </div>
 
   <!-- DONE -->
@@ -787,7 +806,7 @@
   </div>
 
 </div>
-<p class="version">v1.23.20260328</p>
+<p class="version">v1.24.20260328</p>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
@@ -799,7 +818,7 @@
 marked.use({ breaks: true });
 
 // ── State ──────────────────────────────────────────────────────
-let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{front,back}]}] }
+let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{front,back,imageKey}]}], images:{} }
 let activeDeck        = [];
 let lastDeck          = [];
 let missedCards       = [];
@@ -848,6 +867,8 @@ const elDoneSub     = document.getElementById('done-sub');
 const elDoneHit     = document.getElementById('done-hit');
 const elDoneMiss    = document.getElementById('done-miss');
 const elBtnMissed   = document.getElementById('btn-missed');
+const elImagePanel  = document.getElementById('card-image-panel');
+const elImage       = document.getElementById('card-image');
 
 // ── Storage ────────────────────────────────────────────────────
 const STORAGE_KEY = 'fc_decks';
@@ -1015,6 +1036,11 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
   window.scrollTo(0, 0);
   if (id === 'screen-load') renderDeckList();
+  // Hide image panel when leaving study screen
+  if (id !== 'screen-study') {
+    elImagePanel.style.display = 'none';
+    elImage.src = '';
+  }
 }
 
 // ── Toggles (reverse + save) ───────────────────────────────────
@@ -1081,25 +1107,56 @@ document.getElementById('btn-choose-file').addEventListener('click', () => {
 })();
 
 // ── Markdown parser — format: # deck / ## section / ### card ──
+//
+// Supports YAML frontmatter for image deduplication:
+//
+//   ---
+//   images:
+//     key_name: data:image/png;base64,...
+//   ---
+//
+// Reference an image from a card back body with:
+//   <!-- img:key_name -->
+//
 function parseMD(text, filename) {
-  const lines    = text.split('\n');
+  // ── 1. Extract YAML frontmatter ──
+  const images = {};
+  let body = text;
+  const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  if (fmMatch) {
+    body = text.slice(fmMatch[0].length);
+    const fmBlock = fmMatch[1];
+    // Parse `images:` section — each entry is an indented `key: data-uri` line
+    const imgBlock = fmBlock.match(/^images:\r?\n((?:[ \t]+\S[^\r\n]*(?:\r?\n|$))*)/m);
+    if (imgBlock) {
+      for (const line of imgBlock[1].split('\n')) {
+        const m = line.match(/^[ \t]+([\w][\w-]*):\s*(.+)/);
+        if (m) images[m[1]] = m[2].trim();
+      }
+    }
+  }
+
+  // ── 2. Parse card content ──
+  const lines    = body.split('\n');
   const sections = [];
   let deckName   = null;
   let section    = null;
   let card       = null;
   let backBuf    = [];
+  let cardImgKey = null;
   let skipped    = 0;
 
   function saveCard() {
     if (!card) return;
     const back = backBuf.join('\n').trim();
     if (back) {
-      section.cards.push({ front: card, back });
+      section.cards.push({ front: card, back, imageKey: cardImgKey });
     } else {
       skipped++;
     }
-    card    = null;
-    backBuf = [];
+    card       = null;
+    backBuf    = [];
+    cardImgKey = null;
   }
 
   function saveSection() {
@@ -1122,10 +1179,14 @@ function parseMD(text, filename) {
     } else if (level === 3) {
       if (!section) section = { title: 'Cards', cards: [] };
       saveCard();
-      card    = heading;
-      backBuf = [];
+      card       = heading;
+      backBuf    = [];
+      cardImgKey = null;
     } else if (card !== null) {
       if (!backBuf.length && !line) continue;  // skip leading blank lines
+      // Detect image reference comment — strip from back text, record key
+      const imgRef = rawLine.match(/<!--\s*img:([\w][\w-]*)\s*-->/);
+      if (imgRef) { cardImgKey = imgRef[1]; continue; }
       backBuf.push(rawLine.trimEnd());
     }
   }
@@ -1139,7 +1200,8 @@ function parseMD(text, filename) {
   return {
     filename,
     name:     deckName || filename.replace(/\.[^.]+$/, ''),
-    sections
+    sections,
+    images
   };
 }
 
@@ -1296,6 +1358,17 @@ function renderCard() {
     setTimeout(() => setCardContent(elCardBack, back), FLIP_MS);
   } else {
     setCardContent(elCardBack, back);
+  }
+
+  // ── Image panel ──
+  const imgKey = currentCard.imageKey;
+  const imgSrc = imgKey && parsedDeck.images ? parsedDeck.images[imgKey] : null;
+  if (imgSrc) {
+    elImage.src = imgSrc;
+    elImagePanel.style.display = '';
+  } else {
+    elImage.src = '';
+    elImagePanel.style.display = 'none';
   }
 }
 
