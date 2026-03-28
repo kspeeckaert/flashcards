@@ -18,6 +18,7 @@ let btnShowTimeout    = null;
 
 // Persistence state
 let saveEnabled          = false;
+let saveBlocked          = false;
 let hasSavedCurrentDeck  = false;
 let currentRawMarkdown   = '';
 let currentFilename      = '';
@@ -55,8 +56,31 @@ const elImagePanel  = document.getElementById('card-image-panel');
 const elImage       = document.getElementById('card-image');
 
 // ── Storage ────────────────────────────────────────────────────
-const STORAGE_KEY = 'fc_decks';
-const MAX_DECKS   = 10;
+const STORAGE_KEY   = 'fc_decks';
+const MAX_DECKS     = 10;
+const STORAGE_QUOTA = 5 * 1024 * 1024; // 5 MB conservative estimate
+
+function getStorageUsed() {
+  let bytes = 0;
+  for (const key in localStorage) {
+    if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
+      bytes += (key.length + localStorage[key].length) * 2;
+    }
+  }
+  return bytes;
+}
+
+function updateStorageMeter() {
+  const meter = document.getElementById('storage-meter');
+  if (!meter) return;
+  const decks = getDecks();
+  if (!decks.length) { meter.style.display = 'none'; return; }
+  const pct   = Math.min(100, Math.round(getStorageUsed() / STORAGE_QUOTA * 100));
+  const avail = 100 - pct;
+  meter.textContent = `${avail}% storage available`;
+  meter.classList.toggle('low', avail < 20);
+  meter.style.display = '';
+}
 
 function getDecks() {
   try {
@@ -134,6 +158,7 @@ function renderDeckList() {
   });
 
   initDeckSwipe();
+  updateStorageMeter();
 }
 
 function loadDeckById(id) {
@@ -146,6 +171,7 @@ function loadDeckById(id) {
   parsedDeck          = deck;
   hasSavedCurrentDeck = true;  // already persisted — don't re-save
   saveEnabled         = false;
+  saveBlocked         = false;
   document.getElementById('save-knob').classList.remove('on');
   buildSelectScreen();
   showScreen('screen-select');
@@ -260,6 +286,7 @@ function loadFile(file) {
     currentFilename     = file.name;
     hasSavedCurrentDeck = false;
     saveEnabled         = false;
+    saveBlocked         = (raw.length * 2) > (STORAGE_QUOTA - getStorageUsed());
     document.getElementById('save-knob').classList.remove('on');
     buildSelectScreen();
     showScreen('screen-select');
@@ -481,7 +508,16 @@ function refreshCount() {
 }
 
 function refreshSaveToggle() {
-  document.getElementById('save-toggle').style.display = hasSavedCurrentDeck ? 'none' : '';
+  const toggle = document.getElementById('save-toggle');
+  if (hasSavedCurrentDeck) { toggle.style.display = 'none'; return; }
+  toggle.style.display = '';
+  toggle.classList.toggle('disabled', saveBlocked);
+  toggle.querySelector('.toggle-hint').textContent =
+    saveBlocked ? '(not enough storage)' : '(stored in browser)';
+  if (saveBlocked) {
+    saveEnabled = false;
+    document.getElementById('save-knob').classList.remove('on');
+  }
 }
 
 // ── Study ──────────────────────────────────────────────────────

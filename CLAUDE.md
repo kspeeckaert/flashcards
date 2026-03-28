@@ -94,6 +94,8 @@ Rules:
 
 All state is module-level variables (`activeDeck`, `cardIndex`, `hits`, `misses`, `isFlipped`, `isReversed`, `prevState`, etc.). There is no framework.
 
+The undo feature supports a single level of undo only — `prevState` captures the state before the last committed answer, and undoing restores it. This is by design: multi-level undo adds complexity with little practical benefit for a flashcard study flow.
+
 ### Persistence
 
 Decks are saved to `localStorage` under the key `fc_decks` (max 10). Each entry stores the raw markdown (including frontmatter with embedded images), deck metadata, and a generated ID. Session state (score, position) is not persisted.

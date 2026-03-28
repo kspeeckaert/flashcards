@@ -343,6 +343,13 @@
 
     .toggle-label { font-size: 14px; color: var(--ink); }
     .toggle-hint  { font-size: 12px; color: var(--ink-soft); }
+    .toggle-row.disabled { opacity: .45; pointer-events: none; }
+
+    .storage-meter {
+      font-size: 11px; color: var(--ink-soft);
+      margin-top: 8px; text-align: right;
+    }
+    .storage-meter.low { color: var(--miss); }
 
     .start-row {
       width: 100%;
