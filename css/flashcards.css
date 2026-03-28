@@ -104,7 +104,7 @@
     .btn-primary {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--accent); color: #fff;
-      border: none; border-radius: 10px;
+      border: 1.5px solid transparent; border-radius: 10px;
       padding: 13px 26px;
       font-family: var(--font-ui); font-size: 15px; font-weight: 500;
       cursor: pointer;
