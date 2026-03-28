@@ -1,14 +1,16 @@
 # Flashcards
 
-A single-file flashcard web app. No build step, no install, no server required — open `flashcards.html` directly in a browser.
+A flashcard web app. No build step, no install — serve locally and open in a browser.
 
 ## Usage
 
-Open `flashcards.html` in any modern browser, or serve it locally to avoid `file://` restrictions:
+Serve the project locally and open `flashcards.html`:
 
 ```
 python3 -m http.server 8080
 ```
+
+Then open `http://localhost:8080/flashcards.html` in any modern browser.
 
 ## Card format
 

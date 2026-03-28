@@ -4,22 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Single-file flashcard web app (`flashcards.html`). No build step, no dependencies to install, no server required — open directly in a browser via `file://` or any HTTP server.
+A flashcard web app. No build step, no dependencies to install — serve locally with any HTTP server and open in a browser.
 
 A companion tool `img-to-md.html` converts images to base64 and generates the frontmatter block needed for image-enabled decks.
 
+## File structure
+
+```
+flashcards.html       Main app — HTML only
+css/flashcards.css    All styles
+js/flashcards.js      All app logic
+img/icons.svg         SVG sprite (UI icons)
+img/watermark.svg     Decorative watermark illustration
+img-to-md.html        Image-to-base64 helper (standalone)
+sample.md             Example deck
+```
+
 ## Development
 
-Open `flashcards.html` in a browser. No build or install step.
+Serve locally and open `flashcards.html` in a browser:
 
-To serve locally (e.g. to avoid `file://` restrictions):
 ```
 python3 -m http.server 8080
 ```
 
-## Architecture
+External dependencies (`marked`, `DOMPurify`, `KaTeX`) are loaded from CDNs.
 
-The entire app lives in one file: `flashcards.html`. It contains inline CSS and a single `<script>` block. External dependencies (`marked`, `DOMPurify`, `KaTeX`) are loaded from CDNs.
+## Architecture
 
 ### Screens
 
@@ -98,6 +109,11 @@ The image panel (`#card-image-panel`) sits **below** `.answer-btns` in the DOM, 
 - The image is never shown inside the card faces
 - `max-width: 100%` with `height: auto` preserves aspect ratio and prevents upscaling beyond natural size
 - The panel is cleared (`display: none`, `src = ''`) when navigating away from the study screen
+
+### SVG assets
+
+- `img/icons.svg` — SVG sprite; all UI icons are referenced via `<use href="img/icons.svg#icon-name"/>`
+- `img/watermark.svg` — decorative illustration loaded via `<img>` tag; fill colour is baked in as `#1e1c18` since `currentColor` does not propagate through `<img>`
 
 ### Versioning
 
