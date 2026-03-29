@@ -30,6 +30,74 @@ python3 -m http.server 8080
 
 External dependencies (`marked`, `DOMPurify`, `KaTeX`) are loaded from CDNs with `integrity="sha384-…" crossorigin="anonymous"` SRI attributes. If you upgrade a dependency, recompute the hash with `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A` and update the `integrity` attribute in `flashcards.html`.
 
+## Script loading and initialisation order
+
+Understanding load order is critical — getting it wrong causes silent failures (listeners never registered, `marked` not yet available, etc.).
+
+### How scripts are loaded
+
+All three `<script>` tags in `flashcards.html` carry `defer`:
+
+```html
+<script defer src="marked.min.js">        <!-- 1 -->
+<script defer src="purify.min.js">        <!-- 2 -->
+<script defer src="js/flashcards.js">     <!-- 3 -->
+```
+
+`defer` means: **download in parallel, execute in order, after HTML parsing is complete**. By the time any deferred script runs, the full DOM is available. Scripts execute strictly in the order they appear in the HTML.
+
+### What this means in practice
+
+| When | What is guaranteed |
+|---|---|
+| `flashcards.js` starts executing | DOM is fully parsed; `marked` and `DOMPurify` have already run |
+| Any top-level statement in `flashcards.js` | Safe to call `marked`, `DOMPurify`, and `document.getElementById(...)` |
+| `DOMContentLoaded` event | Already fired before any deferred script runs — **do not use it inside `flashcards.js`** |
+
+### The `DOMContentLoaded` trap
+
+Because `DOMContentLoaded` fires *before* deferred scripts execute, registering a listener for it inside `flashcards.js` is a no-op — the event has already passed. Any code placed inside such a listener will never run.
+
+**Wrong:**
+```js
+document.addEventListener('DOMContentLoaded', () => {
+  marked.use({ breaks: true }); // never called
+  renderDeckList();              // never called
+});
+```
+
+**Correct** — just write top-level code; `defer` provides the same guarantee:
+```js
+marked.use({ breaks: true }); // runs after marked.js, with DOM ready
+renderDeckList();
+```
+
+### KaTeX — lazy-loaded on demand
+
+KaTeX JS (~250 KB) is **not** in the HTML. It is injected dynamically by `loadKaTeX(cb)` in `flashcards.js` the first time a card containing `$` is rendered. The CSS is loaded unconditionally from `<head>` (small, non-blocking).
+
+```
+flashcards.js first encounters a $ in card text
+  → loadKaTeX() injects <script> for katex.min.js
+      → on load, injects <script> for auto-render.min.js
+          → calls all queued callbacks
+              → renderMathInElement() + fitText()
+```
+
+Subsequent calls to `loadKaTeX()` are immediate no-ops if KaTeX is already loaded, or queue the callback if loading is still in progress.
+
+### Summary diagram
+
+```
+HTML parse completes
+    │
+    ├─ marked.min.js executes
+    ├─ purify.min.js executes
+    └─ flashcards.js executes   ← all top-level code runs here; DOM and deps ready
+         │
+         └─ (later, on first math card) loadKaTeX() → katex.min.js → auto-render.min.js
+```
+
 ## Architecture
 
 ### Screens

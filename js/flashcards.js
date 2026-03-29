@@ -33,7 +33,8 @@ function loadKaTeX(cb) {
 }
 
 // ── marked config ──────────────────────────────────────────────
-// (called inside DOMContentLoaded — marked is loaded with defer)
+// Safe to call at top level — flashcards.js is loaded with `defer`,
+// so marked.js has already executed by the time this script runs.
 
 // ── State ──────────────────────────────────────────────────────
 let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{_id,front,back,imageKey}]}], images:{} }
@@ -350,9 +351,7 @@ function loadFile(file) {
   reader.readAsText(file);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-
-// ── marked config (deferred until marked.js has loaded) ────────
+// ── marked config ──────────────────────────────────────────────
 marked.use({ breaks: true });
 
 // ── File input ─────────────────────────────────────────────────
@@ -930,5 +929,3 @@ document.querySelector('.tap-hint-text').textContent =
 
 // ── Init ───────────────────────────────────────────────────────
 renderDeckList();
-
-}); // DOMContentLoaded
