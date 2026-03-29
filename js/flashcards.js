@@ -510,6 +510,10 @@ function fitText(el) {
 const chkSVG = `<svg aria-hidden="true"><use href="img/icons.svg#icon-check"/></svg>`;
 
 function buildSelectScreen() {
+  // Reset shuffle to on every time a deck is (re-)loaded from the main screen
+  isShuffled = true;
+  document.getElementById('shuffle-knob').classList.add('on');
+
   document.getElementById('deck-name').textContent = parsedDeck.name;
   const list = document.getElementById('section-list');
   list.innerHTML = parsedDeck.sections.map((sec, i) =>
