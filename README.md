@@ -87,7 +87,7 @@ The image appears **below the answer buttons**, outside the card itself. It stay
 
 ## Features
 
-- **Saved decks** — toggle "Save this deck" on the select screen to store a deck in the browser (up to 10). Saved decks appear on the home screen and can be deleted by swiping left on mobile or clicking the trash icon on desktop.
+- **Saved decks** — toggle "Save this deck" on the select screen to store a deck in the browser (limited to ~5 MB total storage). Saved decks appear on the home screen and can be deleted by swiping left on mobile or clicking the trash icon on desktop.
 - **Section picker** — choose which sections to study before starting.
 - **Reverse mode** — swap front and back (answer → question).
 - **Shuffle** — cards are shuffled each session.

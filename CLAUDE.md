@@ -106,7 +106,7 @@ The undo feature supports a single level of undo only — `prevState` captures t
 
 ### Persistence
 
-Decks are saved to `localStorage` under the key `fc_decks` (max 10). Each entry stores the raw markdown (including frontmatter with embedded images), deck metadata, and a generated ID. Session state (score, position) is not persisted.
+Decks are saved to `localStorage` under the key `fc_decks` (no hard count cap — storage is bounded by a 5 MB quota). Each entry stores the raw markdown (including frontmatter with embedded images), deck metadata, and a generated ID. Session state (score, position) is not persisted.
 
 ### Card content constraint
 

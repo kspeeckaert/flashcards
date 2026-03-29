@@ -1,5 +1,39 @@
+// ── KaTeX lazy loader ──────────────────────────────────────────
+// KaTeX JS (~250 KB) is only injected the first time a card with maths is
+// rendered. Subsequent calls are no-ops once the scripts have loaded.
+let _katexState = 'idle'; // 'idle' | 'loading' | 'ready'
+let _katexQueue = [];     // callbacks waiting for KaTeX to finish loading
+
+function loadKaTeX(cb) {
+  if (_katexState === 'ready')   { cb(); return; }
+  if (_katexState === 'loading') { _katexQueue.push(cb); return; }
+  _katexState = 'loading';
+  _katexQueue.push(cb);
+
+  function onReady() {
+    _katexState = 'ready';
+    _katexQueue.forEach(fn => fn());
+    _katexQueue = [];
+  }
+
+  // Load katex.min.js first, then auto-render (depends on katex)
+  const s1 = document.createElement('script');
+  s1.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+  s1.integrity = 'sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg';
+  s1.crossOrigin = 'anonymous';
+  s1.onload = () => {
+    const s2 = document.createElement('script');
+    s2.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
+    s2.integrity = 'sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk';
+    s2.crossOrigin = 'anonymous';
+    s2.onload = onReady;
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+}
+
 // ── marked config ──────────────────────────────────────────────
-marked.use({ breaks: true });
+// (called inside DOMContentLoaded — marked is loaded with defer)
 
 // ── State ──────────────────────────────────────────────────────
 let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{_id,front,back,imageKey}]}], images:{} }
@@ -58,8 +92,7 @@ const elImage       = document.getElementById('card-image');
 
 // ── Storage ────────────────────────────────────────────────────
 const STORAGE_KEY   = 'fc_decks';
-const MAX_DECKS     = 10;
-const STORAGE_QUOTA = 5 * 1024 * 1024; // 5 MB conservative estimate
+const STORAGE_QUOTA = 5 * 1024 * 1024; // 5 MB — only quota enforced
 
 let _storageUsedCache = null;
 
@@ -109,10 +142,6 @@ function setDecks(decks) {
 function saveDeck() {
   if (hasSavedCurrentDeck) return;
   const decks = getDecks();
-  if (decks.length >= MAX_DECKS) {
-    alert(`You can store up to ${MAX_DECKS} decks. Remove one to save a new deck.`);
-    return;
-  }
   const totalCards = parsedDeck.sections.reduce((n, s) => n + s.cards.length, 0);
   decks.push({
     id:        Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -321,6 +350,12 @@ function loadFile(file) {
   reader.readAsText(file);
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+
+// ── marked config (deferred until marked.js has loaded) ────────
+marked.use({ breaks: true });
+
+// ── File input ─────────────────────────────────────────────────
 document.getElementById('file-input').addEventListener('change', function (e) {
   loadFile(e.target.files[0]);
   e.target.value = '';
@@ -453,16 +488,20 @@ function parseMD(text, filename) {
 function setCardContent(el, text) {
   try {
     el.innerHTML = DOMPurify.sanitize(marked.parse(text));
-    if (typeof renderMathInElement !== 'undefined') {
-      renderMathInElement(el, {
-        delimiters: [
-          { left: '$$', right: '$$', display: true },
-          { left: '$',  right: '$',  display: false }
-        ],
-        throwOnError: false
+    fitText(el);
+    // Only pay the KaTeX cost (~250 KB JS) when the card actually contains maths
+    if (text.includes('$')) {
+      loadKaTeX(() => {
+        renderMathInElement(el, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$',  right: '$',  display: false }
+          ],
+          throwOnError: false
+        });
+        fitText(el); // re-fit after math renders (glyphs may change dimensions)
       });
     }
-    fitText(el);
   } catch (err) {
     console.error('setCardContent failed:', err);
     el.textContent = text;  // fall back to plain text so the card is never blank
@@ -891,3 +930,5 @@ document.querySelector('.tap-hint-text').textContent =
 
 // ── Init ───────────────────────────────────────────────────────
 renderDeckList();
+
+}); // DOMContentLoaded
