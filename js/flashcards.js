@@ -2,10 +2,10 @@
 marked.use({ breaks: true });
 
 // ── State ──────────────────────────────────────────────────────
-let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{front,back,imageKey}]}], images:{} }
+let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{_id,front,back,imageKey}]}], images:{} }
 let activeDeck        = [];
 let lastDeck          = [];
-let missedCards       = [];
+let missedCards       = [];     // stores card._id values (integers), not card objects
 let cardIndex         = 0;
 let hits              = 0;
 let misses            = 0;
@@ -61,15 +61,21 @@ const STORAGE_KEY   = 'fc_decks';
 const MAX_DECKS     = 10;
 const STORAGE_QUOTA = 5 * 1024 * 1024; // 5 MB conservative estimate
 
+let _storageUsedCache = null;
+
 function getStorageUsed() {
+  if (_storageUsedCache !== null) return _storageUsedCache;
   let bytes = 0;
   for (const key in localStorage) {
     if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
       bytes += (key.length + localStorage[key].length) * 2;
     }
   }
+  _storageUsedCache = bytes;
   return bytes;
 }
+
+function invalidateStorageCache() { _storageUsedCache = null; }
 
 function updateStorageMeter() {
   const meter = document.getElementById('storage-meter');
@@ -94,6 +100,7 @@ function getDecks() {
 function setDecks(decks) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
+    invalidateStorageCache();
   } catch {
     alert('Could not save — your browser may be blocking localStorage or storage is full.');
   }
@@ -179,13 +186,18 @@ function loadDeckById(id) {
 }
 
 // ── Deck swipe-to-delete (touch) ───────────────────────────────
+// Tracks which deck items are swiped open; keyed by deck id. Shared with the
+// global touchstart handler so both the DOM reset and the state reset stay in sync.
+const deckSwipeRevealed = new Map();
+
 function initDeckSwipe() {
   const SNAP_PX   = 76;
   const THRESHOLD = 36;
 
   document.querySelectorAll('.deck-item').forEach(item => {
+    const id    = item.dataset.id;
     const inner = item.querySelector('.deck-item-inner');
-    let startX  = 0, startY = 0, dragging = false, revealed = false;
+    let startX  = 0, startY = 0, dragging = false;
 
     inner.addEventListener('touchstart', e => {
       startX   = e.changedTouches[0].clientX;
@@ -205,7 +217,7 @@ function initDeckSwipe() {
       dragging = true;
       e.preventDefault();
 
-      const base   = revealed ? -SNAP_PX : 0;
+      const base   = deckSwipeRevealed.get(id) ? -SNAP_PX : 0;
       const offset = Math.max(-SNAP_PX, Math.min(0, base + dx));
       inner.style.transform = `translateX(${offset}px)`;
     }, { passive: false });
@@ -216,12 +228,12 @@ function initDeckSwipe() {
       const dx = e.changedTouches[0].clientX - startX;
       inner.style.transition = 'transform .25s var(--ease)';
 
-      if ((!revealed && dx < -THRESHOLD) || (revealed && dx < THRESHOLD)) {
+      if ((!deckSwipeRevealed.get(id) && dx < -THRESHOLD) || (deckSwipeRevealed.get(id) && dx < THRESHOLD)) {
         inner.style.transform = `translateX(-${SNAP_PX}px)`;
-        revealed = true;
+        deckSwipeRevealed.set(id, true);
       } else {
         inner.style.transform = '';
-        revealed = false;
+        deckSwipeRevealed.set(id, false);
       }
     });
   });
@@ -234,6 +246,7 @@ document.addEventListener('touchstart', e => {
     if (!inner.closest('.deck-item').contains(e.target)) {
       inner.style.transition = 'transform .25s var(--ease)';
       inner.style.transform  = '';
+      deckSwipeRevealed.set(inner.closest('.deck-item').dataset.id, false);
     }
   });
 }, { passive: true });
@@ -244,10 +257,11 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
   window.scrollTo(0, 0);
   if (id === 'screen-load') renderDeckList();
-  // Hide image panel when leaving study screen
+  // Leaving study screen: reset animation lock so it can't get stuck
   if (id !== 'screen-study') {
+    isAnimating = false;
     elImagePanel.style.display = 'none';
-    elImage.src = '';
+    elImage.removeAttribute('src');
   }
 }
 
@@ -292,7 +306,13 @@ function loadFile(file) {
     currentFilename     = file.name;
     hasSavedCurrentDeck = false;
     saveEnabled         = false;
-    saveBlocked         = (raw.length * 2) > (STORAGE_QUOTA - getStorageUsed());
+    // Measure actual serialised size of the full entry (not just raw * 2, which ignores JSON overhead)
+    const totalCards = parsedDeck.sections.reduce((n, s) => n + s.cards.length, 0);
+    const testEntry  = JSON.stringify({
+      id: '', name: parsedDeck.name, raw,
+      sections: parsedDeck.sections.length, cards: totalCards, createdAt: ''
+    });
+    saveBlocked = (testEntry.length * 2) > (STORAGE_QUOTA - getStorageUsed());
     document.getElementById('save-knob').classList.remove('on');
     buildSelectScreen();
     showScreen('screen-select');
@@ -317,7 +337,7 @@ document.getElementById('btn-choose-file').addEventListener('click', () => {
   zone.addEventListener('dragenter',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragover',   e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave',  e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
-  zone.addEventListener('drop',       e => { e.preventDefault(); zone.classList.remove('drag-over'); loadFile(e.dataTransfer.files[0]); });
+  zone.addEventListener('drop',       e => { e.preventDefault(); zone.classList.remove('drag-over'); if (document.getElementById('screen-load').classList.contains('active')) loadFile(e.dataTransfer.files[0]); });
 })();
 
 // ── Markdown parser — format: # deck / ## section / ### card ──
@@ -336,7 +356,7 @@ function parseMD(text, filename) {
   // ── 1. Extract YAML frontmatter ──
   const images = {};
   let body = text;
-  const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
   if (fmMatch) {
     body = text.slice(fmMatch[0].length);
     const fmBlock = fmMatch[1];
@@ -359,12 +379,16 @@ function parseMD(text, filename) {
   let backBuf    = [];
   let cardImgKey = null;
   let skipped    = 0;
+  let deepHd     = 0;  // H4+ headings, silently ignored by the parser
+
+  let cardSeq = 0;
 
   function saveCard() {
     if (!card) return;
     const back = backBuf.join('\n').trim();
     if (back) {
-      section.cards.push({ front: card, back, imageKey: cardImgKey });
+      // _id is a stable integer identity used for missedCards lookup (avoids reference equality issues)
+      section.cards.push({ _id: ++cardSeq, front: card, back, imageKey: cardImgKey });
     } else {
       skipped++;
     }
@@ -384,6 +408,9 @@ function parseMD(text, filename) {
     const hMatch  = line.match(/^(#{1,3}) (.+)/);
     const level   = hMatch ? hMatch[1].length : 0;
     const heading = hMatch ? hMatch[2].trim() : '';
+
+    // Detect H4+ headings the parser cannot use — counted for a post-parse warning
+    if (!hMatch && /^#{4,} /.test(line)) { deepHd++; continue; }
 
     if (level === 1) {
       if (!deckName) deckName = heading;
@@ -410,6 +437,9 @@ function parseMD(text, filename) {
   if (skipped) {
     alert(`${skipped} card${skipped !== 1 ? 's were' : ' was'} skipped (no answer text).`);
   }
+  if (deepHd) {
+    alert(`${deepHd} heading${deepHd !== 1 ? 's' : ''} used #### or deeper and were ignored.\n\nOnly # (deck), ## (section), and ### (card front) are supported.`);
+  }
 
   return {
     filename,
@@ -421,37 +451,59 @@ function parseMD(text, filename) {
 
 // ── Card content rendering ─────────────────────────────────────
 function setCardContent(el, text) {
-  el.innerHTML = DOMPurify.sanitize(marked.parse(text));
-  if (typeof renderMathInElement !== 'undefined') {
-    renderMathInElement(el, {
-      delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '$',  right: '$',  display: false }
-      ],
-      throwOnError: false
-    });
+  try {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+    if (typeof renderMathInElement !== 'undefined') {
+      renderMathInElement(el, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$',  right: '$',  display: false }
+        ],
+        throwOnError: false
+      });
+    }
+    fitText(el);
+  } catch (err) {
+    console.error('setCardContent failed:', err);
+    el.textContent = text;  // fall back to plain text so the card is never blank
   }
-  fitText(el);
 }
 
 function fitText(el) {
-  // Skip aggressive scaling when display math is present — KaTeX manages its own sizing
-  if (el.querySelector('.katex-display')) return;
+  // KaTeX uses `font-size: 1em` so it scales proportionally with the parent — no special
+  // treatment needed; the binary search works correctly for cards containing display math.
   el.style.fontSize = '';
-  // If content already fits at the natural size, leave the CSS value untouched
-  // (reading scrollHeight/clientHeight here is one reflow, but saves the loop)
-  if (el.scrollHeight <= el.clientHeight) return;
+
+  // One read to check if shrinking is needed at all — fast path for most cards.
+  const h = el.clientHeight;
+  if (el.scrollHeight <= h) return;
+
+  // Run the binary search on an off-screen clone so every write/read pair
+  // happens on a detached subtree, not the live layout — zero forced reflows
+  // on the real element, which stays compositor-friendly during animations.
   const naturalPx = parseFloat(getComputedStyle(el).fontSize);
+  const rect      = el.getBoundingClientRect();
+  const proxy     = el.cloneNode(true);
+  proxy.style.cssText = [
+    'position:fixed', 'top:-9999px', 'left:-9999px',
+    `width:${rect.width}px`, `height:${h}px`,
+    'visibility:hidden', 'pointer-events:none',
+    'overflow:hidden', 'font-size:' + naturalPx + 'px'
+  ].join(';');
+  document.body.appendChild(proxy);
+
   let lo = 11;
   let hi = Math.max(lo, Math.floor(naturalPx));
-  const h = el.clientHeight; // read once — doesn't change during the loop
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    el.style.fontSize = mid + 'px';
-    if (el.scrollHeight > h) hi = mid - 1;
+    proxy.style.fontSize = mid + 'px';
+    if (proxy.scrollHeight > h) hi = mid - 1;
     else lo = mid + 1;
   }
-  el.style.fontSize = hi + 'px';
+
+  document.body.removeChild(proxy);
+  // Single write to the live element — no reflow triggered during animation.
+  if (hi < Math.floor(naturalPx)) el.style.fontSize = hi + 'px';
 }
 
 // ── Section select screen ──────────────────────────────────────
@@ -576,7 +628,7 @@ function renderCard() {
 
   if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
   elCard.classList.remove('flipped');
-  isFlipped = false;
+  isFlipped = false;  // always show the new card face-up, including after undo — intentional
   elAnswerBtns.classList.remove('visible');
 
   // Defer back content to avoid a flash during the flip-back transition
@@ -593,7 +645,7 @@ function renderCard() {
     elImage.src = imgSrc;
     elImagePanel.style.display = '';
   } else {
-    elImage.src = '';
+    elImage.removeAttribute('src');
     elImagePanel.style.display = 'none';
   }
 }
@@ -614,7 +666,7 @@ function answer(correct) {
   canGoBack = true;
   refreshBackBtn();
 
-  if (!correct) missedCards.push(activeDeck[cardIndex]);
+  if (!correct) missedCards.push(activeDeck[cardIndex]._id);
   if (correct) hits++; else misses++;
   cardIndex++;
   if (cardIndex >= activeDeck.length) showDone();
@@ -628,7 +680,7 @@ function goBack() {
   hits      = prevState.hits;
   misses    = prevState.misses;
   if (!prevState.correct) {
-    const idx = missedCards.indexOf(prevState.card);
+    const idx = missedCards.indexOf(prevState.card._id);
     if (idx !== -1) missedCards.splice(idx, 1);
   }
   prevState = null;
@@ -821,7 +873,11 @@ elCard.addEventListener('click', flipCard);
 document.getElementById('btn-hit').addEventListener('click',  () => commitAnswer(true));
 document.getElementById('btn-miss').addEventListener('click', () => commitAnswer(false));
 document.getElementById('btn-study-again').addEventListener('click',    () => startStudy(lastDeck.slice()));
-document.getElementById('btn-missed').addEventListener('click',         () => startStudy(missedCards.slice()));
+document.getElementById('btn-missed').addEventListener('click', () => {
+  // Resolve missed card IDs back to card objects from lastDeck
+  const missedSet = new Set(missedCards);
+  startStudy(lastDeck.filter(c => missedSet.has(c._id)));
+});
 document.getElementById('btn-change-sections').addEventListener('click', () => showScreen('screen-select'));
 document.getElementById('btn-load-new').addEventListener('click',        () => showScreen('screen-load'));
 

@@ -28,7 +28,7 @@ Serve locally and open `flashcards.html` in a browser:
 python3 -m http.server 8080
 ```
 
-External dependencies (`marked`, `DOMPurify`, `KaTeX`) are loaded from CDNs.
+External dependencies (`marked`, `DOMPurify`, `KaTeX`) are loaded from CDNs with `integrity="sha384-…" crossorigin="anonymous"` SRI attributes. If you upgrade a dependency, recompute the hash with `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A` and update the `integrity` attribute in `flashcards.html`.
 
 ## Architecture
 
@@ -39,6 +39,10 @@ Four `<div class="screen">` elements are shown/hidden via `showScreen(id)`:
 - `screen-select` — section picker and study options
 - `screen-study` — active card study session
 - `screen-done` — results and replay options
+
+### Drag-and-drop
+
+`dragover` and `drop` are suppressed on `document` globally (prevents the browser navigating away on an errant drop). `loadFile` is only called when `screen-load` is the active screen — drops on other screens are silently discarded.
 
 ### Markdown format
 
@@ -83,9 +87,9 @@ Rules:
 
 ### Key functions
 
-- `parseMD(text, filename)` — parses markdown into `{ name, sections: [{title, cards:[{front, back, imageKey}]}], images: {key: dataURI} }`; strips YAML frontmatter before card parsing
-- `setCardContent(id, text)` — renders markdown into a card face via `marked` + `DOMPurify` + `renderMathInElement()`, then calls `fitText()`
-- `fitText(el)` — binary-search font-size to fit card content without overflow; skips scaling when a KaTeX display block is present
+- `parseMD(text, filename)` — parses markdown into `{ name, sections: [{title, cards:[{_id, front, back, imageKey}]}], images: {key: dataURI} }`; strips YAML frontmatter before card parsing. Each card receives a stable `_id` (integer) assigned during parsing — used for missed-card tracking to avoid reference-equality fragility. `####`+ headings trigger a user-facing warning and are skipped. `###` cards that appear before any `##` section are silently grouped under a synthetic `{ title: 'Cards' }` section — this is intentional to tolerate decks without explicit sections.
+- `setCardContent(el, text)` — renders markdown into a card face via `marked` + `DOMPurify` + `renderMathInElement()`, then calls `fitText()`; wrapped in try/catch, falls back to plain text on error
+- `fitText(el)` — binary-search font-size to fit card content without overflow. Runs the search on a detached off-screen clone so no forced reflows occur on the live element; applies the result in a single write. KaTeX scales proportionally with inherited `font-size` (`1em`) so no special treatment is needed for display math.
 - `renderCard()` — updates the DOM for the current card, including showing/hiding the image panel
 - `commitAnswer(hit)` — records the answer, triggers swipe/fly animation, advances to next card
 - `showScreen(id)` — switches the active screen; clears image panel when leaving study screen
@@ -94,7 +98,11 @@ Rules:
 
 All state is module-level variables (`activeDeck`, `cardIndex`, `hits`, `misses`, `isFlipped`, `isReversed`, `prevState`, etc.). There is no framework.
 
-The undo feature supports a single level of undo only — `prevState` captures the state before the last committed answer, and undoing restores it. This is by design: multi-level undo adds complexity with little practical benefit for a flashcard study flow.
+`missedCards` stores card `_id` integers (not card objects) to avoid reference-equality fragility across shuffled copies. "Study missed" resolves them back to card objects via a `Set` lookup against `lastDeck`.
+
+`deckSwipeRevealed` is a module-level `Map<deckId, bool>` shared between `initDeckSwipe()` and the global `touchstart` handler so both the DOM transform reset and the logical revealed state stay in sync when the deck list rebuilds.
+
+The undo feature supports a single level of undo only — `prevState` captures the state before the last committed answer, and undoing restores it. This is by design: multi-level undo adds complexity with little practical benefit for a flashcard study flow. Undo always returns the card face-up — intentional.
 
 ### Persistence
 
@@ -110,7 +118,7 @@ The image panel (`#card-image-panel`) sits **below** `.answer-btns` in the DOM, 
 - The answer buttons use `opacity` only for their show/hide transition (no `translateY`) so they always occupy their layout space — this prevents the image from shifting when the card is flipped
 - The image is never shown inside the card faces
 - `max-width: 100%` with `height: auto` preserves aspect ratio and prevents upscaling beyond natural size
-- The panel is cleared (`display: none`, `src = ''`) when navigating away from the study screen
+- The panel is cleared (`display: none`, `removeAttribute('src')`) when navigating away from the study screen — using `removeAttribute` rather than `src = ''` avoids a spurious request to the page URL
 
 ### SVG assets
 
@@ -120,3 +128,20 @@ The image panel (`#card-image-panel`) sits **below** `.answer-btns` in the DOM, 
 ### Versioning
 
 The version string in the `.version` footer element follows `v<major>.<minor>.<YYYYMMDD>` — update it when making changes.
+
+## img-to-md.html
+
+Standalone helper tool — no dependencies. Drop image files → generates base64 YAML frontmatter for deck files.
+
+### Key functions (`js/img-to-md.js`)
+
+- `readFiles(files)` — validates type and deduplicates by filename before reading. Uses a `pending` counter so `renderList()` and `renderOutput()` are called exactly once when all `FileReader` callbacks complete, not once per file.
+- `uniqueKey(base)` — derives a collision-free key from a filename; snapshots existing keys into a `Set` once before the loop to avoid repeated array mapping.
+- `copyText(text, btn)` — writes to clipboard and toggles a "✓ Copied" state on the button. Targets `btn.querySelector('span') || btn` for the label so SVG children on icon-bearing buttons are not clobbered.
+- `renderList()` — rebuilds the image list UI from `entries`; wires key-input, remove, and snippet-copy handlers.
+- `renderOutput()` — rebuilds the frontmatter `<pre>` block from `entries`; hides the panel when empty.
+
+### Behaviour notes
+
+- Dropping the same filename twice is detected and skipped with an alert — deduplication is by `filename`, not file content.
+- The "Copy frontmatter" button in `img-to-md.html` wraps its label text in a `<span>` so `copyText` can update just the text without touching the adjacent SVG icon.

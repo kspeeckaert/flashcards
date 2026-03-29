@@ -32,33 +32,53 @@ function isDuplicateKey(key, excludeId) {
 
 // ── File reading ───────────────────────────────────────────────
 function readFiles(files) {
+  // Filter out unsupported types and duplicates before starting any reads
+  const toRead = [];
+  const duplicates = [];
   for (const file of files) {
     if (!VALID_TYPES.includes(file.type)) {
       alert(`"${file.name}" is not a supported image type. Use PNG, JPEG, WebP, GIF, or SVG.`);
       continue;
     }
+    if (entries.some(e => e.filename === file.name)) {
+      duplicates.push(file.name);
+      continue;
+    }
+    toRead.push(file);
+  }
+  if (duplicates.length) {
+    alert(`${duplicates.length === 1 ? `"${duplicates[0]}" is` : `${duplicates.length} files are`} already added and ${duplicates.length === 1 ? 'was' : 'were'} skipped.`);
+  }
+  if (!toRead.length) return;
+
+  // Read all files, then render once when the last one completes
+  let pending = toRead.length;
+  function onDone() {
+    if (--pending === 0) { renderList(); renderOutput(); }
+  }
+
+  for (const file of toRead) {
     const reader = new FileReader();
     reader.onload = ev => {
-      const entry = {
+      entries.push({
         id:       nextId++,
         key:      uniqueKey(filenameToKey(file.name)),
         dataUri:  ev.target.result,
         filename: file.name,
         size:     file.size,
         type:     file.type
-      };
-      entries.push(entry);
-      renderList();
-      renderOutput();
+      });
+      onDone();
     };
-    reader.onerror = () => alert(`Could not read "${file.name}".`);
+    reader.onerror = () => { alert(`Could not read "${file.name}".`); onDone(); };
     reader.readAsDataURL(file);
   }
 }
 
 function uniqueKey(base) {
+  const existing = new Set(allKeys());  // snapshot once — avoid O(n²) allKeys() calls in loop
   let key = base, n = 2;
-  while (allKeys().includes(key)) key = base + '_' + n++;
+  while (existing.has(key)) key = base + '_' + n++;
   return key;
 }
 
@@ -161,11 +181,13 @@ function renderOutput() {
 function copyText(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
     if (!btn) return;
-    const orig = btn.textContent;
-    btn.textContent = '✓ Copied';
+    // Target a <span> child when present so SVG siblings are not clobbered
+    const labelEl = btn.querySelector('span') || btn;
+    const orig = labelEl.textContent;
+    labelEl.textContent = '✓ Copied';
     btn.classList.add('copied');
     setTimeout(() => {
-      btn.textContent = orig;
+      labelEl.textContent = orig;
       btn.classList.remove('copied');
     }, 1800);
   }).catch(() => alert('Could not copy. Please select and copy manually.'));

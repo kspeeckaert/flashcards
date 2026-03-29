@@ -259,13 +259,6 @@
     .btn-copy-big:active { opacity: .8; }
     .btn-copy-big.copied { background: var(--hit); }
 
-    /* ── Empty state ───────────────────────────────────── */
-    .empty-state {
-      text-align: center;
-      padding: 10px 0 4px;
-      font-size: 14px; color: var(--ink-faint);
-    }
-
     /* ── Duplicate warning ─────────────────────────────── */
     .key-warning {
       font-size: 11px; color: var(--miss);
