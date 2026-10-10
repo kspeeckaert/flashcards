@@ -36,6 +36,8 @@ const LIBRARIES = [
   ['katex/dist/katex.min.css',              'katex/katex.min.css'],
   ['katex/dist/contrib/auto-render.min.js', 'katex/contrib/auto-render.min.js'],
   ['katex/LICENSE',                         'katex/LICENSE'],
+  ['mermaid/dist/mermaid.min.js',           'mermaid/mermaid.min.js'],
+  ['mermaid/LICENSE',                       'mermaid/LICENSE'],
 ];
 
 // KaTeX fonts: only .woff2. katex.min.css lists woff2 first, and every supported browser
