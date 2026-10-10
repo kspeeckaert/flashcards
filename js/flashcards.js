@@ -18,14 +18,10 @@ function loadKaTeX(cb) {
 
   // Load katex.min.js first, then auto-render (depends on katex)
   const s1 = document.createElement('script');
-  s1.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
-  s1.integrity = 'sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg';
-  s1.crossOrigin = 'anonymous';
+  s1.src = 'vendor/katex/katex.min.js';
   s1.onload = () => {
     const s2 = document.createElement('script');
-    s2.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
-    s2.integrity = 'sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk';
-    s2.crossOrigin = 'anonymous';
+    s2.src = 'vendor/katex/contrib/auto-render.min.js';
     s2.onload = onReady;
     document.head.appendChild(s2);
   };

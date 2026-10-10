@@ -2,16 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Image → Markdown · Flashcards</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#f7f4ee">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
   <link rel="stylesheet" href="css/img-to-md.css">
+  <link rel="stylesheet" href="css/pwa.css">
 </head>
 <body>
 <div id="app">
-  <p class="wordmark">Flashcards</p>
+  <a class="wordmark" href="flashcards.html">← Flashcards</a>
   <h1 class="page-title">Image → Markdown</h1>
   <p class="page-sub">Embed images into your flashcard deck as self-contained base64 data.</p>
 
@@ -48,8 +51,10 @@
 
   </div>
 </div>
-<p class="version">v1.2.20260329</p>
+<p class="version"></p>
 
+<script src="js/version.js"></script>
+<script src="js/pwa.js"></script>
 <script src="js/img-to-md.js"></script>
 </body>
 </html>
