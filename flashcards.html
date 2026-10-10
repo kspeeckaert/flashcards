@@ -81,18 +81,18 @@
     </div>
     <p class="deck-name" id="deck-name"></p>
     <div class="section-list" id="section-list"></div>
-    <label class="toggle-row" id="shuffle-toggle">
-      <div class="toggle-knob on" id="shuffle-knob"></div>
+    <button type="button" class="toggle-row" id="shuffle-toggle" role="switch" aria-checked="true">
+      <span class="toggle-knob on" aria-hidden="true"></span>
       <span class="toggle-label">Shuffle cards</span>
-    </label>
-    <label class="toggle-row" id="reverse-toggle">
-      <div class="toggle-knob" id="rev-knob"></div>
+    </button>
+    <button type="button" class="toggle-row" id="reverse-toggle" role="switch" aria-checked="false">
+      <span class="toggle-knob" aria-hidden="true"></span>
       <span class="toggle-label">Reverse cards <span class="toggle-hint">(answer → question)</span></span>
-    </label>
-    <label class="toggle-row" id="save-toggle">
-      <div class="toggle-knob" id="save-knob"></div>
+    </button>
+    <button type="button" class="toggle-row" id="save-toggle" role="switch" aria-checked="false">
+      <span class="toggle-knob" aria-hidden="true"></span>
       <span class="toggle-label">Save this deck <span class="toggle-hint">(stored in browser)</span></span>
-    </label>
+    </button>
     <div class="start-row">
       <button class="btn-ghost" id="btn-back-to-load">
         <svg width="14" height="14" aria-hidden="true"><use href="img/icons.svg#icon-back"/></svg>
@@ -129,7 +129,7 @@
       <span id="score-live"></span>
     </div>
     <div class="card-scene">
-      <div class="card" id="card">
+      <div class="card" id="card" role="button" tabindex="0">
         <div class="face front">
           <span class="face-label">Front</span>
           <div class="face-text" id="card-front"></div>
@@ -138,7 +138,7 @@
             <span class="tap-hint-text">Click to reveal</span>
           </div>
         </div>
-        <div class="face back">
+        <div class="face back" aria-hidden="true">
           <span class="face-label">Answer</span>
           <div class="face-text" id="card-back"></div>
           <div class="tap-hint" aria-hidden="true" style="visibility:hidden">x</div>
@@ -146,7 +146,7 @@
         </div>
       </div>
     </div>
-    <div class="answer-btns" id="answer-btns">
+    <div class="answer-btns" id="answer-btns" inert>
       <button class="btn-miss" id="btn-miss">✗  Miss</button>
       <button class="btn-hit"  id="btn-hit">✓  Got it</button>
     </div>

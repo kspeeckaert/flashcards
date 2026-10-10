@@ -128,6 +128,8 @@ const elCard        = document.getElementById('card');
 const elCardFront   = document.getElementById('card-front');
 const elCardBack    = document.getElementById('card-back');
 const elAnswerBtns  = document.getElementById('answer-btns');
+const elFaceFront   = elCard.querySelector('.face.front');
+const elFaceBack    = elCard.querySelector('.face.back');
 const elBtnGoBack   = document.getElementById('btn-goback');
 const elProgFill    = document.getElementById('prog-fill');
 const elProgText    = document.getElementById('prog-text');
@@ -301,19 +303,22 @@ async function renderDeckList() {
     const cardLabel = `${deck.cards} card${deck.cards !== 1 ? 's' : ''}`;
     return `<div class="deck-item" data-id="${deck.id}">
       <div class="deck-item-inner">
-        <div class="deck-item-content">
+        <div class="deck-item-content" role="button" tabindex="0">
           <span class="deck-item-name">${esc(deck.name)}</span>
           <span class="deck-item-meta">${secLabel} · ${cardLabel} · ${deck.createdAt}</span>
         </div>
-        <button class="deck-delete-btn" title="Delete deck">${trashSVG}</button>
+        <button class="deck-delete-btn" title="Delete deck" aria-label="Delete deck ${esc(deck.name)}">${trashSVG}</button>
       </div>
-      <button class="deck-delete-reveal">Delete</button>
+      <button class="deck-delete-reveal" tabindex="-1" aria-hidden="true">Delete</button>
     </div>`;
   }).join('');
 
   list.querySelectorAll('.deck-item').forEach((item, i) => {
     const { id, name } = decks[i];
     item.querySelector('.deck-item-inner').addEventListener('click', () => loadDeckById(id, name));
+    item.querySelector('.deck-item-content').addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadDeckById(id, name); }
+    });
     item.querySelector('.deck-delete-btn').addEventListener('click', e => { e.stopPropagation(); deleteDeck(id); });
     item.querySelector('.deck-delete-reveal').addEventListener('click', e => { e.stopPropagation(); deleteDeck(id); });
   });
@@ -337,7 +342,7 @@ async function loadDeckById(id, name) {
   parsedDeck          = deck;
   hasSavedCurrentDeck = true;  // already persisted — don't re-save
   saveEnabled         = false;
-  document.getElementById('save-knob').classList.remove('on');
+  setSwitch('save-toggle', false);
   buildSelectScreen();
   showScreen('screen-select');
 }
@@ -421,21 +426,28 @@ function showScreen(id) {
   }
 }
 
-// ── Toggles (reverse + save) ───────────────────────────────────
+// ── Switches (shuffle, reverse, save) ──────────────────────────
+// Each switch is a <button role="switch">: aria-checked and the knob class show the state.
+function setSwitch(id, on) {
+  const btn = document.getElementById(id);
+  btn.setAttribute('aria-checked', String(on));
+  btn.querySelector('.toggle-knob').classList.toggle('on', on);
+}
+
 document.getElementById('shuffle-toggle').addEventListener('click', () => {
   isShuffled = !isShuffled;
-  document.getElementById('shuffle-knob').classList.toggle('on', isShuffled);
+  setSwitch('shuffle-toggle', isShuffled);
 });
 
 document.getElementById('reverse-toggle').addEventListener('click', () => {
   isReversed = !isReversed;
-  document.getElementById('rev-knob').classList.toggle('on', isReversed);
+  setSwitch('reverse-toggle', isReversed);
 });
 
 document.getElementById('save-toggle').addEventListener('click', () => {
   if (hasSavedCurrentDeck) return;  // already saved, ignore
   saveEnabled = !saveEnabled;
-  document.getElementById('save-knob').classList.toggle('on', saveEnabled);
+  setSwitch('save-toggle', saveEnabled);
 });
 
 // ── File loading ───────────────────────────────────────────────
@@ -462,7 +474,7 @@ function loadFile(file) {
     currentFilename     = file.name;
     hasSavedCurrentDeck = false;
     saveEnabled         = false;
-    document.getElementById('save-knob').classList.remove('on');
+    setSwitch('save-toggle', false);
     buildSelectScreen();
     showScreen('screen-select');
   };
@@ -821,12 +833,12 @@ const chkSVG = `<svg aria-hidden="true"><use href="img/icons.svg#icon-check"/></
 function buildSelectScreen() {
   // Reset shuffle to on every time a deck is (re-)loaded from the main screen
   isShuffled = true;
-  document.getElementById('shuffle-knob').classList.add('on');
+  setSwitch('shuffle-toggle', true);
 
   document.getElementById('deck-name').textContent = parsedDeck.name;
   const list = document.getElementById('section-list');
   list.innerHTML = parsedDeck.sections.map((sec, i) =>
-    `<div class="section-item checked" data-idx="${i}">
+    `<div class="section-item checked" data-idx="${i}" role="checkbox" aria-checked="true" tabindex="0">
       <input type="checkbox" checked>
       <div class="chk">${chkSVG}</div>
       <div class="sec-label">
@@ -836,9 +848,12 @@ function buildSelectScreen() {
     </div>`
   ).join('');
 
-  list.querySelectorAll('.section-item').forEach(el =>
-    el.addEventListener('click', () => toggleItem(el))
-  );
+  list.querySelectorAll('.section-item').forEach(el => {
+    el.addEventListener('click', () => toggleItem(el));
+    el.addEventListener('keydown', e => {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleItem(el); }
+    });
+  });
 
   refreshCount();
   refreshSaveToggle();
@@ -848,6 +863,7 @@ function toggleItem(el) {
   const cb  = el.querySelector('input');
   cb.checked = !cb.checked;
   el.classList.toggle('checked', cb.checked);
+  el.setAttribute('aria-checked', String(cb.checked));
   refreshCount();
 }
 
@@ -857,6 +873,7 @@ function toggleAll() {
   items.forEach(el => {
     el.querySelector('input').checked = !allOn;
     el.classList.toggle('checked', !allOn);
+    el.setAttribute('aria-checked', String(!allOn));
   });
   refreshCount();
 }
@@ -883,11 +900,12 @@ function refreshSaveToggle() {
   if (hasSavedCurrentDeck) { toggle.style.display = 'none'; return; }
   toggle.style.display = '';
   toggle.classList.toggle('disabled', saveBlocked);
+  toggle.disabled = saveBlocked;
   toggle.querySelector('.toggle-hint').textContent =
     saveBlocked ? '(storage not available)' : '(stored in browser)';
   if (saveBlocked) {
     saveEnabled = false;
-    document.getElementById('save-knob').classList.remove('on');
+    setSwitch('save-toggle', false);
   }
 }
 
@@ -919,6 +937,7 @@ function startStudy(cardsOverride) {
   showScreen('screen-study');
   refreshBackBtn();
   renderCard();
+  elCard.focus({ preventScroll: true });   // keyboard and screen reader users start on the card
 }
 
 // ── Render card ────────────────────────────────────────────────
@@ -946,7 +965,8 @@ function renderCard() {
   if (backContentTimeout) { clearTimeout(backContentTimeout); backContentTimeout = null; }
   elCard.classList.remove('flipped');
   isFlipped = false;  // always show the new card face-up, including after undo — intentional
-  elAnswerBtns.classList.remove('visible');
+  updateFaceVisibility();
+  setAnswerButtonsVisible(false);
 
   // Defer back content to avoid a flash during the flip-back transition
   if (wasFlipped) {
@@ -1041,13 +1061,26 @@ function clearMediaPanel() {
 function flipCard() {
   isFlipped = !isFlipped;
   elCard.classList.toggle('flipped', isFlipped);
+  updateFaceVisibility();
   updateMediaPanel();
   if (isFlipped) {
-    btnShowTimeout = setTimeout(() => { btnShowTimeout = null; elAnswerBtns.classList.add('visible'); }, 250);
+    btnShowTimeout = setTimeout(() => { btnShowTimeout = null; setAnswerButtonsVisible(true); }, 250);
   } else {
     if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
-    elAnswerBtns.classList.remove('visible');
+    setAnswerButtonsVisible(false);
   }
+}
+
+// Screen readers read only the visible face, so the answer stays hidden until the flip
+function updateFaceVisibility() {
+  elFaceFront.setAttribute('aria-hidden', String(isFlipped));
+  elFaceBack.setAttribute('aria-hidden', String(!isFlipped));
+}
+
+// Hidden answer buttons are inert: Tab cannot reach them and they cannot be activated
+function setAnswerButtonsVisible(visible) {
+  elAnswerBtns.classList.toggle('visible', visible);
+  elAnswerBtns.inert = !visible;
 }
 
 function answer(correct) {
@@ -1123,7 +1156,7 @@ function commitAnswer(correct) {
   isAnimating = true;
 
   // Hide answer buttons immediately on entry
-  elAnswerBtns.classList.remove('visible');
+  setAnswerButtonsVisible(false);
 
   if (typeof navigator.vibrate === 'function') {
     navigator.vibrate(correct ? 20 : [10, 40, 10]);
@@ -1247,7 +1280,11 @@ function commitAnswer(correct) {
 // ── Keyboard shortcuts ─────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (!document.getElementById('screen-study').classList.contains('active')) return;
-  if      (e.code === 'Space')      { e.preventDefault(); flipCard(); }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;   // keep browser shortcuts such as Cmd+Left
+  // Space and Enter on a focused button (Undo, Exit, Miss, Got it) keep their normal action
+  const onControl = e.target.closest && e.target.closest('button, a, input, select, textarea');
+  if ((e.code === 'Space' || e.code === 'Enter') && onControl) return;
+  if      (e.code === 'Space' || (e.code === 'Enter' && e.target === elCard)) { e.preventDefault(); flipCard(); }
   else if (e.code === 'ArrowRight') { e.preventDefault(); if (isFlipped) commitAnswer(true); }
   else if (e.code === 'ArrowLeft')  { e.preventDefault(); if (isFlipped) commitAnswer(false); }
 });
