@@ -196,6 +196,8 @@
     .btn-copy-small:hover   { background: var(--accent); color: #fff; }
     .btn-copy-small:active  { opacity: .7; }
     .btn-copy-small.copied  { background: var(--hit-soft); color: var(--hit); border-color: var(--hit); }
+    .btn-copy-small:disabled, .btn-copy-big:disabled { opacity: .4; pointer-events: none; }
+    .snippet-code.stale     { opacity: .45; text-decoration: line-through; }   /* invalid key: out of date */
 
     .btn-remove {
       flex-shrink: 0; align-self: flex-start;
@@ -241,6 +243,11 @@
       white-space: pre;
       max-height: 260px;
       overflow-y: auto;
+    }
+
+    .output-stale {
+      font-size: 12px; color: var(--miss);
+      margin: -6px 0 12px;
     }
 
     .output-total {

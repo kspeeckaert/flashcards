@@ -4,6 +4,15 @@ const entries = [];
 let nextId    = 1;
 
 const VALID_TYPES = ['image/png','image/jpeg','image/webp','image/gif','image/svg+xml'];
+const EXT_TYPES   = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' };
+
+// Entry ids with an invalid key; while not empty, copying is disabled (the output has the old key)
+const invalidKeys = new Set();
+
+// Some systems give no MIME type (for example for some SVG files): use the file extension then
+function imageType(file) {
+  return file.type || EXT_TYPES[file.name.split('.').pop().toLowerCase()] || '';
+}
 const KEY_RE      = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -83,8 +92,11 @@ function looksLikePhoto(ctx, w, h) {
 
 // Returns { dataUri, width, height, note } for one file
 async function processImage(file) {
-  const original = await readAsDataURL(file);
-  if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+  const type = imageType(file);
+  let original = await readAsDataURL(file);
+  // Without a MIME type, FileReader writes "data:application/octet-stream;..."
+  if (!file.type) original = original.replace(/^data:[^;,]*/, 'data:' + type);
+  if (type === 'image/svg+xml' || type === 'image/gif') {
     return { dataUri: original, width: null, height: null, note: 'kept as is' };
   }
 
@@ -114,9 +126,10 @@ function readFiles(files) {
   // Filter out unsupported types and duplicates before starting any reads
   const toRead = [];
   const duplicates = [];
+  const unsupported = [];
   for (const file of files) {
-    if (!VALID_TYPES.includes(file.type)) {
-      alert(`"${file.name}" is not a supported image type. Use PNG, JPEG, WebP, GIF, or SVG.`);
+    if (!VALID_TYPES.includes(imageType(file))) {
+      unsupported.push(file.name);
       continue;
     }
     if (entries.some(e => e.filename === file.name)) {
@@ -124,6 +137,10 @@ function readFiles(files) {
       continue;
     }
     toRead.push(file);
+  }
+  // One alert for all rejected files, not one per file
+  if (unsupported.length) {
+    alert(`${unsupported.length === 1 ? `"${unsupported[0]}" is` : `${unsupported.length} files are`} not a supported image type and ${unsupported.length === 1 ? 'was' : 'were'} skipped. Use PNG, JPEG, WebP, GIF, or SVG.`);
   }
   if (duplicates.length) {
     alert(`${duplicates.length === 1 ? `"${duplicates[0]}" is` : `${duplicates.length} files are`} already added and ${duplicates.length === 1 ? 'was' : 'were'} skipped.`);
@@ -146,7 +163,7 @@ function readFiles(files) {
         dataUri:  r.value.dataUri,
         filename: file.name,
         size:     file.size,
-        type:     file.type,
+        type:     imageType(file),
         width:    r.value.width,
         height:   r.value.height,
         note:     r.value.note
@@ -166,6 +183,8 @@ function uniqueKey(base) {
 
 // ── Render ─────────────────────────────────────────────────────
 function renderList() {
+  invalidKeys.clear();   // the rebuilt inputs show the stored (valid) keys
+  refreshCopyState();
   const list = document.getElementById('img-list');
   if (!entries.length) {
     list.innerHTML = '';
@@ -176,23 +195,23 @@ function renderList() {
     <div class="img-item" data-id="${e.id}">
       <img class="img-thumb" src="${e.dataUri}" alt="">
       <div class="img-body">
-        <span class="img-meta" title="${escAttr(escHtml(e.filename))}">${escHtml(e.filename)} · ${formatBytes(e.size)} → ${formatBytes(e.dataUri.length)} in the deck${e.width ? ` · ${e.width}×${e.height}` : ''} · ${escHtml(e.note)}</span>
+        <span class="img-meta" title="${esc(e.filename)}">${esc(e.filename)} · ${formatBytes(e.size)} → ${formatBytes(e.dataUri.length)} in the deck${e.width ? ` · ${e.width}×${e.height}` : ''} · ${esc(e.note)}</span>
         <div class="key-row">
           <span class="key-label">Key</span>
-          <input class="key-input" type="text" value="${escAttr(e.key)}"
+          <input class="key-input" type="text" value="${esc(e.key)}"
                  spellcheck="false" autocomplete="off"
                  data-id="${e.id}" aria-label="Image key name">
         </div>
         <span class="key-warning" id="warn-${e.id}">The key must start with a letter or _, contain only letters, digits, _ or -, and differ from the other keys (capitals do not count).</span>
         <div class="key-row">
           <span class="key-label">Alt</span>
-          <input class="alt-input key-input" type="text" value="${escAttr(escHtml(e.alt))}"
+          <input class="alt-input key-input" type="text" value="${esc(e.alt)}"
                  placeholder="Short description of the image"
                  spellcheck="true" autocomplete="off"
                  data-alt-id="${e.id}" aria-label="Image description (alt text)">
         </div>
         <div class="snippet-row">
-          <code class="snippet-code" id="snip-${e.id}">${escHtml(snippetFor(e))}</code>
+          <code class="snippet-code" id="snip-${e.id}">${esc(snippetFor(e))}</code>
           <button class="btn-copy-small" data-copy-snip="${e.id}">Copy</button>
         </div>
       </div>
@@ -216,12 +235,21 @@ function renderList() {
       input.classList.toggle('invalid', !valid);
       if (warn) warn.classList.toggle('visible', !KEY_RE.test(key) || isDuplicateKey(key, id));
 
+      // While the key is invalid, the snippet and the output keep the last valid key:
+      // mark them as out of date and disable copying (I3)
+      const snip = document.getElementById(`snip-${id}`);
+      const copy = document.querySelector(`[data-copy-snip="${id}"]`);
       if (valid) {
         entry.key = key;
-        const snip = document.getElementById(`snip-${id}`);
         if (snip) snip.textContent = snippetFor(entry);
+        invalidKeys.delete(id);
         renderOutput();
+      } else {
+        invalidKeys.add(id);
       }
+      if (snip) snip.classList.toggle('stale', !valid);
+      if (copy) copy.disabled = !valid;
+      refreshCopyState();
     });
   });
 
@@ -243,6 +271,7 @@ function renderList() {
       const id = +btn.dataset.remove;
       const idx = entries.findIndex(e => e.id === id);
       if (idx !== -1) entries.splice(idx, 1);
+      invalidKeys.delete(id);
       renderList();
       renderOutput();
     });
@@ -292,12 +321,15 @@ function copyText(text, btn) {
   }).catch(() => alert('Could not copy. Please select and copy manually.'));
 }
 
-// ── Escape helpers ─────────────────────────────────────────────
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function escAttr(s) {
-  return s.replace(/"/g,'&quot;');
+// ── Escape helper ──────────────────────────────────────────────
+// Escapes text for HTML content and attribute values. js/flashcards.js has the same function.
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+// Disable "Copy definitions" and show a note while a key is invalid
+function refreshCopyState() {
+  const blocked = invalidKeys.size > 0;
+  document.getElementById('btn-copy-all').disabled = blocked;
+  document.getElementById('output-stale').style.display = blocked ? '' : 'none';
 }
 
 // ── Drop zone ──────────────────────────────────────────────────
