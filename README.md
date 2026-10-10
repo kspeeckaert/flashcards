@@ -84,7 +84,11 @@ Both sides support Markdown, for example bold, italic, code, and lists. If a car
 The app shows math with KaTeX:
 
 - Inline math: `$E = mc^2$`
-- Display math: `$$\int_{-\infty}^{\infty} e^{-x^2}\, dx = \sqrt{\pi}$$`
+- Display math: `$$\int_{-\infty}^{\infty} e^{-x^2}\, dx = \sqrt{\pi}$$`, or `$$` on its own line before and after the formula
+
+For inline math, put the opening `$` at the start of a line or after a space. Put a space, a punctuation mark (`.,:?!`), or the end of the line after the closing `$`. Thus "It costs $5 and $10." stays text. Math directly inside brackets, for example `($x$)`, also stays text. Write `( $x$ )` instead.
+
+If a formula has an error, the app shows the formula source in red.
 
 ### Images and diagrams
 
@@ -174,7 +178,7 @@ On `localhost` and `127.0.0.1`, the app does not start its service worker (the s
 
 The script `scripts/build.js` does three tasks:
 
-1. It copies the browser libraries (marked, DOMPurify, KaTeX, Mermaid) and the fonts (Lora, DM Sans) from `node_modules/` into `vendor/`.
+1. It copies the browser libraries (marked, DOMPurify, KaTeX, marked-katex-extension, Mermaid) and the fonts (Lora, DM Sans) from `node_modules/` into `vendor/`.
 2. It writes `vendor/fonts/fonts.css` for those fonts.
 3. It writes a block into `sw.js`. The block contains the app version, the list of files for offline use, and a hash of their contents.
 
