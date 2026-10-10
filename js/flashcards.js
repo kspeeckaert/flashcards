@@ -1,6 +1,8 @@
 // ── KaTeX lazy loader ──────────────────────────────────────────
-// KaTeX JS (~250 KB) is only injected the first time a card with maths is
-// rendered. Subsequent calls are no-ops once the scripts have loaded.
+// KaTeX JS (~270 KB) and marked-katex-extension are only injected the first time a card
+// text contains "$". After the load, marked renders math itself (inside marked.parse), so
+// Markdown never changes the LaTeX source (backslashes, *, _).
+// Subsequent calls are no-ops once the scripts have loaded.
 let _katexState = 'idle'; // 'idle' | 'loading' | 'ready'
 let _katexQueue = [];     // callbacks waiting for KaTeX to finish loading
 
@@ -11,6 +13,9 @@ function loadKaTeX(cb) {
   _katexQueue.push(cb);
 
   function onReady() {
+    // Inline math: "$" at the start or after a space, and the closing "$" before a space,
+    // punctuation, or the end of the line. So "$5 and $10" stays text.
+    marked.use(markedKatex({ throwOnError: false }));
     _katexState = 'ready';
     _katexQueue.forEach(fn => fn());
     _katexQueue = [];
@@ -23,13 +28,13 @@ function loadKaTeX(cb) {
     _katexQueue = [];
   }
 
-  // Load katex.min.js first, then auto-render (depends on katex)
+  // Load katex.min.js first, then the extension (its UMD build reads the global katex on load)
   const s1 = document.createElement('script');
   s1.src = 'vendor/katex/katex.min.js';
   s1.onerror = onError;
   s1.onload = () => {
     const s2 = document.createElement('script');
-    s2.src = 'vendor/katex/contrib/auto-render.min.js';
+    s2.src = 'vendor/marked-katex-extension/index.umd.js';
     s2.onerror = onError;
     s2.onload = onReady;
     document.head.appendChild(s2);
@@ -713,23 +718,27 @@ function parseMD(text, filename) {
 }
 
 // ── Card content rendering ─────────────────────────────────────
+// Each call gets a sequence number. A render that waits for KaTeX only runs if no newer
+// content was set on the same face in the meantime.
+let _renderSeq = 0;
+
 function setCardContent(el, text) {
+  const seq = String(++_renderSeq);
+  el.dataset.renderSeq = seq;
+  renderMarkdown(el, text);
+  // Only pay the KaTeX cost when the card actually contains "$". Until KaTeX is loaded,
+  // the text shows without math rendering; it renders again once KaTeX is ready.
+  if (text.includes('$') && _katexState !== 'ready') {
+    loadKaTeX(() => {
+      if (el.dataset.renderSeq === seq) renderMarkdown(el, text);
+    });
+  }
+}
+
+function renderMarkdown(el, text) {
   try {
     el.innerHTML = DOMPurify.sanitize(marked.parse(text));
     fitText(el);
-    // Only pay the KaTeX cost (~250 KB JS) when the card actually contains maths
-    if (text.includes('$')) {
-      loadKaTeX(() => {
-        renderMathInElement(el, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$',  right: '$',  display: false }
-          ],
-          throwOnError: false
-        });
-        fitText(el); // re-fit after math renders (glyphs may change dimensions)
-      });
-    }
   } catch (err) {
     console.error('setCardContent failed:', err);
     el.textContent = text;  // fall back to plain text so the card is never blank
