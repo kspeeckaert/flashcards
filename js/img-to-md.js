@@ -1,5 +1,5 @@
 // ── State ──────────────────────────────────────────────────────
-// Each entry: { id, key, alt, dataUri, filename, size, type }
+// Each entry: { id, key, alt, dataUri, filename, size, type, width, height, note }
 const entries = [];
 let nextId    = 1;
 
@@ -36,6 +36,79 @@ function snippetFor(entry) {
   return `![${entry.alt || entry.key}][${entry.key}]`;
 }
 
+// ── Image processing ───────────────────────────────────────────
+// Images become smaller before they go into the deck:
+//   - The longest side becomes at most MAX_SIDE px. The panel in the app is at most 540 CSS px
+//     wide, so 1200 px stays sharp on screens with 2x pixel density.
+//   - A photo (no transparency, many colors) becomes JPEG. Line art and images with
+//     transparency stay PNG, because JPEG blurs sharp edges and has no transparency.
+//     Safari cannot encode WebP from a canvas, so WebP input becomes PNG or JPEG too.
+//   - SVG and GIF stay as they are (SVG scales without loss, a GIF can be animated).
+//   - If the result is not smaller than the original file, the original file is kept. Pixel size
+//     matters less than byte size: the app scales an image down to the panel width anyway.
+const MAX_SIDE        = 1200;
+const JPEG_QUALITY    = 0.85;
+const PHOTO_MIN_COLORS = 4096;   // more distinct colors than this (in a sample) means "photo"
+
+function readAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('The image could not be decoded')); };
+    img.src = url;
+  });
+}
+
+// True if the image has no transparent pixels and many distinct colors (sampled)
+function looksLikePhoto(ctx, w, h) {
+  const data   = ctx.getImageData(0, 0, w, h).data;
+  const step   = Math.max(1, Math.floor((w * h) / 50000)) * 4;   // at most ~50,000 samples
+  const colors = new Set();
+  for (let i = 0; i < data.length; i += step) {
+    if (data[i + 3] < 255) return false;
+    if (colors.size <= PHOTO_MIN_COLORS) colors.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
+  }
+  return colors.size > PHOTO_MIN_COLORS;
+}
+
+// Returns { dataUri, width, height, note } for one file
+async function processImage(file) {
+  const original = await readAsDataURL(file);
+  if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+    return { dataUri: original, width: null, height: null, note: 'kept as is' };
+  }
+
+  const img    = await loadImage(file);
+  const scale  = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const width  = Math.max(1, Math.round(img.naturalWidth  * scale));
+  const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const photo   = looksLikePhoto(ctx, width, height);
+  const outType = photo ? 'image/jpeg' : 'image/png';
+  const output  = canvas.toDataURL(outType, JPEG_QUALITY);
+
+  if (output.length >= original.length) {
+    return { dataUri: original, width: img.naturalWidth, height: img.naturalHeight, note: 'kept as is (smaller)' };
+  }
+  const label = photo ? 'JPEG' : 'PNG';
+  return { dataUri: output, width, height, note: scale < 1 ? `scaled down, ${label}` : label };
+}
+
 // ── File reading ───────────────────────────────────────────────
 function readFiles(files) {
   // Filter out unsupported types and duplicates before starting any reads
@@ -57,29 +130,31 @@ function readFiles(files) {
   }
   if (!toRead.length) return;
 
-  // Read all files, then render once when the last one completes
-  let pending = toRead.length;
-  function onDone() {
-    if (--pending === 0) { renderList(); renderOutput(); }
-  }
-
-  for (const file of toRead) {
-    const reader = new FileReader();
-    reader.onload = ev => {
+  // Process all files, then add them in the order the user chose them and render once
+  Promise.allSettled(toRead.map(processImage)).then(results => {
+    results.forEach((r, i) => {
+      const file = toRead[i];
+      if (r.status === 'rejected') {
+        console.error(r.reason);
+        alert(`Could not read "${file.name}".`);
+        return;
+      }
       entries.push({
         id:       nextId++,
         key:      uniqueKey(filenameToKey(file.name)),
         alt:      '',
-        dataUri:  ev.target.result,
+        dataUri:  r.value.dataUri,
         filename: file.name,
         size:     file.size,
-        type:     file.type
+        type:     file.type,
+        width:    r.value.width,
+        height:   r.value.height,
+        note:     r.value.note
       });
-      onDone();
-    };
-    reader.onerror = () => { alert(`Could not read "${file.name}".`); onDone(); };
-    reader.readAsDataURL(file);
-  }
+    });
+    renderList();
+    renderOutput();
+  });
 }
 
 function uniqueKey(base) {
@@ -101,7 +176,7 @@ function renderList() {
     <div class="img-item" data-id="${e.id}">
       <img class="img-thumb" src="${e.dataUri}" alt="">
       <div class="img-body">
-        <span class="img-meta">${escHtml(e.filename)} · ${formatBytes(e.size)}</span>
+        <span class="img-meta" title="${escAttr(escHtml(e.filename))}">${escHtml(e.filename)} · ${formatBytes(e.size)} → ${formatBytes(e.dataUri.length)} in the deck${e.width ? ` · ${e.width}×${e.height}` : ''} · ${escHtml(e.note)}</span>
         <div class="key-row">
           <span class="key-label">Key</span>
           <input class="key-input" type="text" value="${escAttr(e.key)}"
@@ -195,6 +270,9 @@ function renderOutput() {
 
   // Reference definitions: "[key]: data:..." — one line per image
   pre.textContent     = entries.map(e => `[${e.key}]: ${e.dataUri}`).join('\n');
+  const total = entries.reduce((n, e) => n + e.dataUri.length, 0);
+  document.getElementById('output-total').textContent =
+    `${entries.length} image${entries.length !== 1 ? 's' : ''} · ${formatBytes(total)} in the deck`;
   panel.style.display = '';
 }
 

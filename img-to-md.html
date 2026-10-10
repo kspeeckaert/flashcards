@@ -37,11 +37,13 @@
     <div class="output-panel" id="output-panel" style="display:none">
       <div class="output-header">
         <span class="output-title">Image definitions</span>
+        <span class="output-total" id="output-total"></span>
       </div>
       <pre class="output-pre" id="output-pre"></pre>
       <p class="output-note">
         Paste these lines at the end of your <code>.md</code> file.
         Then add the line <code>![description][key]</code> to the front or the back of a card. Each side of a card can show one image or one diagram.
+        The tool scales images down to at most 1200 px and stores photos as JPEG.
       </p>
       <button class="btn-copy-big" id="btn-copy-all">
         <svg width="14" height="14" aria-hidden="true"><use href="img/icons.svg#icon-copy"/></svg>
