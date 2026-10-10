@@ -108,7 +108,7 @@ A deck contains its images as base64 data, so the deck stays one file. The app s
 
 1. Open the Image → Markdown tool. The start screen of the app has a link to it.
 2. Drop your image files on the tool, or click "Choose images…".
-3. Set a short key and a description for each image.
+3. Set a short key and a description for each image. The tool shows how much space each image takes in the deck, and the total.
 4. Copy the image definitions, and paste them at the end of your `.md` file.
 5. Copy the line `![description][key]` of an image, and paste it in the front or the back of a card.
 
@@ -124,6 +124,13 @@ European robin
 
 [robin]: data:image/png;base64,...
 ```
+
+The tool makes images smaller before it adds them to the deck:
+
+- It scales an image down until its longest side is at most 1200 pixels.
+- It stores a photo as JPEG. It keeps line art and images with transparent areas as PNG, because JPEG blurs sharp edges and has no transparency.
+- It keeps SVG and GIF files as they are. A GIF can be animated.
+- If the original file is smaller than the result, it keeps the original file.
 
 Rules for images:
 

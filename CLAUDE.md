@@ -265,12 +265,13 @@ Helper tool, part of the same PWA. It loads `js/version.js`, `js/pwa.js`, `css/p
 
 ### Key functions (`js/img-to-md.js`)
 
-- `readFiles(files)` — validates type and deduplicates by filename before reading. Uses a `pending` counter so `renderList()` and `renderOutput()` are called exactly once when all `FileReader` callbacks complete, not once per file.
+- `readFiles(files)` — validates type and deduplicates by filename, then runs `processImage()` on all files with `Promise.allSettled()`. It adds the entries in the order the user chose the files and calls `renderList()` and `renderOutput()` once. A file that cannot be decoded gives an alert and is skipped.
+- `processImage(file)` — returns `{ dataUri, width, height, note }`. SVG and GIF stay as they are. Other images are drawn on a canvas with the longest side at most `MAX_SIDE` (1200 px). `looksLikePhoto()` samples the pixels: no transparency and more than `PHOTO_MIN_COLORS` (4096) distinct colors means JPEG (`JPEG_QUALITY` 0.85), otherwise PNG. Safari cannot encode WebP from a canvas, so WebP is never an output. If the result is not smaller than the original data URI, the original is kept.
 - `uniqueKey(base)` — derives a collision-free key from a filename; snapshots existing keys into a `Set` once before the loop to avoid repeated array mapping. Keys are compared in lower case, because Markdown labels are case-insensitive (`isDuplicateKey()` does the same).
 - `snippetFor(entry)` — returns `![alt][key]`, with the key as alt text if the alt field is empty. Brackets are removed from the alt text.
 - `copyText(text, btn)` — writes to clipboard and toggles a "✓ Copied" state on the button. Targets `btn.querySelector('span') || btn` for the label so SVG children on icon-bearing buttons are not clobbered.
 - `renderList()` — rebuilds the image list UI from `entries`; wires key-input, alt-input, remove, and snippet-copy handlers.
-- `renderOutput()` — rebuilds the definitions `<pre>` block from `entries`; hides the panel when empty.
+- `renderOutput()` — rebuilds the definitions `<pre>` block from `entries` and the total size in `#output-total` (the data URI length, which is what the deck stores); hides the panel when empty.
 
 ### Behaviour notes
 
