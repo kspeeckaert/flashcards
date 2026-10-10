@@ -51,7 +51,7 @@ let backContentTimeout = null;  // deferred back-face update in renderCard()
 
 // Persistence state
 let saveEnabled          = false;
-let saveBlocked          = false;
+let saveBlocked          = false;   // true if the browser gives no IndexedDB
 let hasSavedCurrentDeck  = false;
 let currentRawMarkdown   = '';
 let currentFilename      = '';
@@ -88,84 +88,155 @@ const elBtnMissed   = document.getElementById('btn-missed');
 const elImagePanel  = document.getElementById('card-image-panel');
 const elImage       = document.getElementById('card-image');
 
-// ── Storage ────────────────────────────────────────────────────
-const STORAGE_KEY   = 'fc_decks';
-const STORAGE_QUOTA = 5 * 1024 * 1024; // 5 MB — only quota enforced
+// ── Storage (IndexedDB) ────────────────────────────────────────
+// Two object stores, both keyed by deck id:
+//   "decks"  — the metadata that the deck list shows { id, name, sections, cards, createdAt }
+//   "bodies" — the raw markdown of the deck { id, raw }, which can be large (embedded images)
+// The deck list reads only "decks". A deck id starts with Date.now() in base 36, so the key
+// order of getAll() is the order in which the decks were saved.
+const DB_NAME    = 'flashcards';
+const DB_VERSION = 1;
 
-let _storageUsedCache = null;
+let _dbPromise = null;
 
-function getStorageUsed() {
-  if (_storageUsedCache !== null) return _storageUsedCache;
-  let bytes = 0;
-  for (const key in localStorage) {
-    if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
-      bytes += (key.length + localStorage[key].length) * 2;
-    }
-  }
-  _storageUsedCache = bytes;
-  return bytes;
+function requestResult(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
 }
 
-function invalidateStorageCache() { _storageUsedCache = null; }
+function transactionDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror    = () => reject(tx.error);
+    tx.onabort    = () => reject(tx.error || new DOMException('Transaction aborted', 'AbortError'));
+  });
+}
 
-function updateStorageMeter() {
+function openDB() {
+  if (!_dbPromise) {
+    _dbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB is not available')); return; }
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore('decks',  { keyPath: 'id' });
+        req.result.createObjectStore('bodies', { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => reject(req.error);
+    });
+  }
+  return _dbPromise;
+}
+
+// Disable the save toggle if the browser gives no IndexedDB (for example a strict private mode)
+openDB().catch(err => {
+  console.error('Saved decks are not available:', err);
+  saveBlocked = true;
+  refreshSaveToggle();
+});
+
+async function getDecks() {
+  const db = await openDB();
+  return requestResult(db.transaction('decks').objectStore('decks').getAll());
+}
+
+async function getDeckRaw(id) {
+  const db  = await openDB();
+  const rec = await requestResult(db.transaction('bodies').objectStore('bodies').get(id));
+  return rec ? rec.raw : null;
+}
+
+// Resolves only after the transaction has completed, so a resolved promise means the deck is stored
+async function putDeck(meta, raw) {
+  const db = await openDB();
+  const tx = db.transaction(['decks', 'bodies'], 'readwrite');
+  tx.objectStore('decks').put(meta);
+  tx.objectStore('bodies').put({ id: meta.id, raw });
+  await transactionDone(tx);
+}
+
+async function removeDeck(id) {
+  const db = await openDB();
+  const tx = db.transaction(['decks', 'bodies'], 'readwrite');
+  tx.objectStore('decks').delete(id);
+  tx.objectStore('bodies').delete(id);
+  await transactionDone(tx);
+}
+
+// Ask the browser to keep the saved decks when it needs disk space. Safari grants this
+// more easily to an installed app. Called on the first save, not at startup, because
+// Firefox shows a permission prompt.
+function requestPersistentStorage() {
+  if (!navigator.storage || !navigator.storage.persist) return;
+  navigator.storage.persisted()
+    .then(persisted => persisted || navigator.storage.persist())
+    .catch(() => {});
+}
+
+async function updateStorageMeter() {
   const meter = document.getElementById('storage-meter');
   if (!meter) return;
-  const decks = getDecks();
-  if (!decks.length) { meter.style.display = 'none'; return; }
-  const pct   = Math.min(100, Math.round(getStorageUsed() / STORAGE_QUOTA * 100));
-  const avail = 100 - pct;
-  meter.textContent = `${avail}% storage available`;
-  meter.classList.toggle('low', avail < 20);
-  meter.style.display = '';
-}
-
-function getDecks() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const { usage, quota } = await navigator.storage.estimate();
+    if (!quota) throw new Error('no quota');
+    const avail = 100 - Math.min(100, Math.round(usage / quota * 100));
+    meter.textContent = `${avail}% storage available`;
+    meter.classList.toggle('low', avail < 20);
+    meter.style.display = '';
   } catch {
-    return [];
+    meter.style.display = 'none';   // StorageManager.estimate() not available
   }
 }
 
-function setDecks(decks) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
-    invalidateStorageCache();
-  } catch {
-    alert('Could not save — your browser may be blocking localStorage or storage is full.');
-  }
-}
-
-function saveDeck() {
+async function saveDeck() {
   if (hasSavedCurrentDeck) return;
-  const decks = getDecks();
+  hasSavedCurrentDeck = true;   // set before the async write, so a second call cannot save twice
   const totalCards = parsedDeck.sections.reduce((n, s) => n + s.cards.length, 0);
-  decks.push({
+  const meta = {
     id:        Date.now().toString(36) + Math.random().toString(36).slice(2),
     name:      parsedDeck.name,
-    raw:       currentRawMarkdown,
     sections:  parsedDeck.sections.length,
     cards:     totalCards,
     createdAt: new Date().toISOString().slice(0, 10)
-  });
-  setDecks(decks);
-  hasSavedCurrentDeck = true;
+  };
+  try {
+    await putDeck(meta, currentRawMarkdown);
+    requestPersistentStorage();
+  } catch (err) {
+    hasSavedCurrentDeck = false;   // the toggle shows again on the select screen
+    console.error('Could not save the deck:', err);
+    alert(err && err.name === 'QuotaExceededError'
+      ? 'Could not save the deck: the storage of this browser is full.'
+      : 'Could not save the deck: the browser does not allow storage.');
+  }
 }
 
-function deleteDeck(id) {
+async function deleteDeck(id) {
   if (!confirm('Delete this deck?')) return;
-  setDecks(getDecks().filter(d => d.id !== id));
+  try {
+    await removeDeck(id);
+  } catch (err) {
+    console.error('Could not delete the deck:', err);
+    alert('Could not delete the deck.');
+  }
   renderDeckList();
 }
 
 // ── Deck library ───────────────────────────────────────────────
 const trashSVG = `<svg width="14" height="14" aria-hidden="true"><use href="img/icons.svg#icon-trash"/></svg>`;
 
-function renderDeckList() {
-  const decks   = getDecks();
+async function renderDeckList() {
   const library = document.getElementById('deck-library');
   const list    = document.getElementById('deck-list');
+
+  let decks = [];
+  try {
+    decks = await getDecks();
+  } catch (err) {
+    console.error('Could not read the saved decks:', err);
+  }
 
   if (!decks.length) { library.style.display = 'none'; return; }
 
@@ -185,9 +256,9 @@ function renderDeckList() {
     </div>`;
   }).join('');
 
-  list.querySelectorAll('.deck-item').forEach(item => {
-    const id = item.dataset.id;
-    item.querySelector('.deck-item-inner').addEventListener('click', () => loadDeckById(id));
+  list.querySelectorAll('.deck-item').forEach((item, i) => {
+    const { id, name } = decks[i];
+    item.querySelector('.deck-item-inner').addEventListener('click', () => loadDeckById(id, name));
     item.querySelector('.deck-delete-btn').addEventListener('click', e => { e.stopPropagation(); deleteDeck(id); });
     item.querySelector('.deck-delete-reveal').addEventListener('click', e => { e.stopPropagation(); deleteDeck(id); });
   });
@@ -196,17 +267,21 @@ function renderDeckList() {
   updateStorageMeter();
 }
 
-function loadDeckById(id) {
-  const stored = getDecks().find(d => d.id === id);
-  if (!stored) return;
-  currentRawMarkdown  = stored.raw;
-  currentFilename     = stored.name;
-  const deck = parseMD(stored.raw, stored.name);
+async function loadDeckById(id, name) {
+  let raw = null;
+  try {
+    raw = await getDeckRaw(id);
+  } catch (err) {
+    console.error('Could not read the deck:', err);
+  }
+  if (raw === null) { alert('Could not open this deck.'); return; }
+  currentRawMarkdown  = raw;
+  currentFilename     = name;
+  const deck = parseMD(raw, name);
   if (!deck.sections.length) return;
   parsedDeck          = deck;
   hasSavedCurrentDeck = true;  // already persisted — don't re-save
   saveEnabled         = false;
-  saveBlocked         = false;
   document.getElementById('save-knob').classList.remove('on');
   buildSelectScreen();
   showScreen('screen-select');
@@ -333,13 +408,6 @@ function loadFile(file) {
     currentFilename     = file.name;
     hasSavedCurrentDeck = false;
     saveEnabled         = false;
-    // Measure actual serialised size of the full entry (not just raw * 2, which ignores JSON overhead)
-    const totalCards = parsedDeck.sections.reduce((n, s) => n + s.cards.length, 0);
-    const testEntry  = JSON.stringify({
-      id: '', name: parsedDeck.name, raw,
-      sections: parsedDeck.sections.length, cards: totalCards, createdAt: ''
-    });
-    saveBlocked = (testEntry.length * 2) > (STORAGE_QUOTA - getStorageUsed());
     document.getElementById('save-knob').classList.remove('on');
     buildSelectScreen();
     showScreen('screen-select');
@@ -610,7 +678,7 @@ function refreshSaveToggle() {
   toggle.style.display = '';
   toggle.classList.toggle('disabled', saveBlocked);
   toggle.querySelector('.toggle-hint').textContent =
-    saveBlocked ? '(not enough storage)' : '(stored in browser)';
+    saveBlocked ? '(storage not available)' : '(stored in browser)';
   if (saveBlocked) {
     saveEnabled = false;
     document.getElementById('save-knob').classList.remove('on');
@@ -631,7 +699,7 @@ function startStudy(cardsOverride) {
 
   if (!activeDeck.length) return;
 
-  // Save deck to localStorage if toggled on and not yet saved
+  // Save the deck if toggled on and not yet saved (async; errors show an alert)
   if (saveEnabled && !hasSavedCurrentDeck) saveDeck();
 
   lastDeck    = [...activeDeck];

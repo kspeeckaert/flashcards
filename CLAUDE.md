@@ -213,7 +213,14 @@ The undo feature supports a single level of undo only — `prevState` captures t
 
 ### Persistence
 
-Decks are saved to `localStorage` under the key `fc_decks` (no hard count cap — storage is bounded by a 5 MB quota). Each entry stores the raw markdown (including frontmatter with embedded images), deck metadata, and a generated ID. Session state (score, position) is not persisted.
+Saved decks live in IndexedDB, database `flashcards`, with two object stores keyed by deck id:
+
+- `decks` holds the metadata for the deck list: `{ id, name, sections, cards, createdAt }`.
+- `bodies` holds the raw markdown, including embedded images: `{ id, raw }`.
+
+The deck list reads only `decks`. `getDecks()`, `getDeckRaw()`, `putDeck()`, and `removeDeck()` are async. `putDeck()` resolves only after the transaction completes. `saveDeck()` sets `hasSavedCurrentDeck` before the write and resets it if the write fails, so a failed save shows the toggle again. The first successful save calls `navigator.storage.persist()`. It is not called at startup, because Firefox shows a permission prompt. The storage meter uses `navigator.storage.estimate()`. If IndexedDB is not available, `saveBlocked` is true and the save toggle is disabled.
+
+Versions before 1.43 saved decks in `localStorage` under the key `fc_decks`. The app does not read or migrate that key. Session state (score, position) is not persisted.
 
 ### Card content constraint
 
