@@ -82,14 +82,11 @@ function loadMermaid() {
   return _mermaidPromise;
 }
 
-// ── marked config ──────────────────────────────────────────────
-// Safe to call at top level — flashcards.js is loaded with `defer`,
-// so marked.js has already executed by the time this script runs.
-
 // ── State ──────────────────────────────────────────────────────
 let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{_id,front,back,frontMedia,backMedia}]}] }
 let activeDeck        = [];
-let lastDeck          = [];
+let lastDeck          = [];     // the cards of the last round ("Study missed" picks from these)
+let selectionDeck     = [];     // the cards of the selected sections ("Study again" uses these)
 let missedCards       = [];     // stores card._id values (integers), not card objects
 let cardIndex         = 0;
 let hits              = 0;
@@ -98,19 +95,17 @@ let isFlipped         = false;
 let isReversed        = false;
 let isShuffled        = true;
 let isAnimating       = false;
-let prevState         = null;
-let canGoBack         = false;
+let prevState         = null;   // state before the last answer; null means nothing to undo
 let btnShowTimeout    = null;
 let backContentTimeout = null;  // deferred back-face update in renderCard()
 
 // Persistence state
-let saveEnabled          = false;
 let saveBlocked          = false;   // true if the browser gives no IndexedDB
 let hasSavedCurrentDeck  = false;
 let currentRawMarkdown   = '';
-let currentFilename      = '';
 
-const FLIP_MS        = 420;
+// The flip duration comes from the CSS variable --flip-ms, the same value as the .card transition
+const FLIP_MS        = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--flip-ms')) || 420;
 const ANIM_THRESHOLD = 80;
 const ANIM_MAX_TILT  = 12;
 const ANIM_FLY_PX    = 420;
@@ -121,7 +116,8 @@ let animScene   = null;
 let animOverlay = null;
 
 // ── Helpers ────────────────────────────────────────────────────
-const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// Escapes text for HTML content and attribute values. js/img-to-md.js has the same function.
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 // ── DOM refs ───────────────────────────────────────────────────
 const elCard        = document.getElementById('card');
@@ -247,27 +243,47 @@ async function updateStorageMeter() {
   }
 }
 
+// SHA-256 of the deck markdown, stored with the deck to find identical decks.
+// null if crypto.subtle is not available (it needs HTTPS or localhost).
+async function deckHash(raw) {
+  if (!window.crypto || !crypto.subtle) return null;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function findSavedDeck(hash) {
+  if (!hash) return null;
+  return (await getDecks()).find(d => d.hash === hash) || null;
+}
+
+// Called when the save switch turns on. A deck with the same content is not saved twice.
 async function saveDeck() {
   if (hasSavedCurrentDeck) return;
   hasSavedCurrentDeck = true;   // set before the async write, so a second call cannot save twice
-  const totalCards = parsedDeck.sections.reduce((n, s) => n + s.cards.length, 0);
-  const meta = {
-    id:        Date.now().toString(36) + Math.random().toString(36).slice(2),
-    name:      parsedDeck.name,
-    sections:  parsedDeck.sections.length,
-    cards:     totalCards,
-    createdAt: new Date().toISOString().slice(0, 10)
-  };
+  refreshSaveToggle();
+  const deck = parsedDeck;
+  const raw  = currentRawMarkdown;
   try {
-    await putDeck(meta, currentRawMarkdown);
-    requestPersistentStorage();
+    const hash = await deckHash(raw);
+    if (!(await findSavedDeck(hash))) {
+      await putDeck({
+        id:        Date.now().toString(36) + Math.random().toString(36).slice(2),
+        name:      deck.name,
+        sections:  deck.sections.length,
+        cards:     deck.sections.reduce((n, s) => n + s.cards.length, 0),
+        createdAt: new Date().toISOString().slice(0, 10),
+        hash
+      }, raw);
+      requestPersistentStorage();
+    }
   } catch (err) {
-    hasSavedCurrentDeck = false;   // the toggle shows again on the select screen
+    hasSavedCurrentDeck = false;   // the switch turns off again
     console.error('Could not save the deck:', err);
     alert(err && err.name === 'QuotaExceededError'
       ? 'Could not save the deck: the storage of this browser is full.'
       : 'Could not save the deck: the browser does not allow storage.');
   }
+  refreshSaveToggle();
 }
 
 async function deleteDeck(id) {
@@ -295,17 +311,18 @@ async function renderDeckList() {
     console.error('Could not read the saved decks:', err);
   }
 
+  deckSwipeRevealed.clear();   // the new items start closed, so the swipe state must too
   if (!decks.length) { library.style.display = 'none'; return; }
 
   library.style.display = '';
   list.innerHTML = decks.map(deck => {
     const secLabel  = `${deck.sections} section${deck.sections !== 1 ? 's' : ''}`;
     const cardLabel = `${deck.cards} card${deck.cards !== 1 ? 's' : ''}`;
-    return `<div class="deck-item" data-id="${deck.id}">
+    return `<div class="deck-item" data-id="${esc(deck.id)}">
       <div class="deck-item-inner">
         <div class="deck-item-content" role="button" tabindex="0">
           <span class="deck-item-name">${esc(deck.name)}</span>
-          <span class="deck-item-meta">${secLabel} · ${cardLabel} · ${deck.createdAt}</span>
+          <span class="deck-item-meta">${secLabel} · ${cardLabel} · ${esc(deck.createdAt)}</span>
         </div>
         <button class="deck-delete-btn" title="Delete deck" aria-label="Delete deck ${esc(deck.name)}">${trashSVG}</button>
       </div>
@@ -336,13 +353,10 @@ async function loadDeckById(id, name) {
   }
   if (raw === null) { alert('Could not open this deck.'); return; }
   currentRawMarkdown  = raw;
-  currentFilename     = name;
-  const deck = parseMD(raw, name);
+  const deck = parseMD(raw, name, { warn: false });   // the warnings showed when the deck was loaded
   if (!deck.sections.length) return;
   parsedDeck          = deck;
   hasSavedCurrentDeck = true;  // already persisted — don't re-save
-  saveEnabled         = false;
-  setSwitch('save-toggle', false);
   buildSelectScreen();
   showScreen('screen-select');
 }
@@ -444,10 +458,10 @@ document.getElementById('reverse-toggle').addEventListener('click', () => {
   setSwitch('reverse-toggle', isReversed);
 });
 
+// The save switch saves the deck at once. It stays on (and disabled) for a saved deck.
 document.getElementById('save-toggle').addEventListener('click', () => {
-  if (hasSavedCurrentDeck) return;  // already saved, ignore
-  saveEnabled = !saveEnabled;
-  setSwitch('save-toggle', saveEnabled);
+  if (hasSavedCurrentDeck || saveBlocked) return;
+  saveDeck();
 });
 
 // ── File loading ───────────────────────────────────────────────
@@ -471,12 +485,13 @@ function loadFile(file) {
     }
     parsedDeck          = deck;
     currentRawMarkdown  = raw;
-    currentFilename     = file.name;
     hasSavedCurrentDeck = false;
-    saveEnabled         = false;
-    setSwitch('save-toggle', false);
     buildSelectScreen();
     showScreen('screen-select');
+    // If the same deck is already saved, show the save switch as on (Q8)
+    deckHash(raw).then(findSavedDeck).then(found => {
+      if (found && currentRawMarkdown === raw) { hasSavedCurrentDeck = true; refreshSaveToggle(); }
+    }).catch(() => {});
   };
   reader.onerror = () => alert('Could not read the file. Please try again.');
   reader.readAsText(file);
@@ -538,7 +553,8 @@ const normalizeLabel = label => label.trim().replace(/\s+/g, ' ').toLowerCase();
 // True if position `index` in `str` is inside an inline code span (odd number of backticks before it)
 const inCodeSpan = (str, index) => ((str.slice(0, index).match(/`/g) || []).length % 2) === 1;
 
-function parseMD(text, filename) {
+// options.warn = false skips the warning alert (for a saved deck, which showed it when loaded)
+function parseMD(text, filename, { warn = true } = {}) {
   const lines    = text.replace(/^﻿/, '').split(/\r?\n/);
   const warnings = [];
 
@@ -715,7 +731,7 @@ function parseMD(text, filename) {
   if (skipped) {
     warnings.unshift(`${skipped} card${skipped !== 1 ? 's were' : ' was'} skipped (no answer).`);
   }
-  if (warnings.length) {
+  if (warn && warnings.length) {
     const MAX = 10;
     const shown = warnings.slice(0, MAX).map(w => '• ' + w);
     if (warnings.length > MAX) shown.push(`… and ${warnings.length - MAX} more.`);
@@ -834,6 +850,9 @@ function buildSelectScreen() {
   // Reset shuffle to on every time a deck is (re-)loaded from the main screen
   isShuffled = true;
   setSwitch('shuffle-toggle', true);
+  // Reverse resets to off, so a new deck always starts with question → answer
+  isReversed = false;
+  setSwitch('reverse-toggle', false);
 
   document.getElementById('deck-name').textContent = parsedDeck.name;
   const list = document.getElementById('section-list');
@@ -897,16 +916,12 @@ function refreshCount() {
 
 function refreshSaveToggle() {
   const toggle = document.getElementById('save-toggle');
-  if (hasSavedCurrentDeck) { toggle.style.display = 'none'; return; }
-  toggle.style.display = '';
+  setSwitch('save-toggle', hasSavedCurrentDeck);
+  toggle.disabled = hasSavedCurrentDeck || saveBlocked;
   toggle.classList.toggle('disabled', saveBlocked);
-  toggle.disabled = saveBlocked;
   toggle.querySelector('.toggle-hint').textContent =
-    saveBlocked ? '(storage not available)' : '(stored in browser)';
-  if (saveBlocked) {
-    saveEnabled = false;
-    setSwitch('save-toggle', false);
-  }
+    saveBlocked ? '(storage not available)' :
+    hasSavedCurrentDeck ? '(saved in this browser)' : '(stored in browser)';
 }
 
 // ── Study ──────────────────────────────────────────────────────
@@ -918,13 +933,11 @@ function startStudy(cardsOverride) {
     const checked = items.filter(i => i.querySelector('input').checked);
     if (!checked.length) return;
     const cards   = checked.flatMap(el => parsedDeck.sections[+el.dataset.idx].cards);
+    selectionDeck = cards;
     activeDeck    = isShuffled ? shuffle([...cards]) : [...cards];
   }
 
   if (!activeDeck.length) return;
-
-  // Save the deck if toggled on and not yet saved (async; errors show an alert)
-  if (saveEnabled && !hasSavedCurrentDeck) saveDeck();
 
   lastDeck    = [...activeDeck];
   missedCards = [];
@@ -932,7 +945,6 @@ function startStudy(cardsOverride) {
   hits        = 0;
   misses      = 0;
   prevState   = null;
-  canGoBack   = false;
 
   showScreen('screen-study');
   refreshBackBtn();
@@ -1059,6 +1071,7 @@ function clearMediaPanel() {
 }
 
 function flipCard() {
+  if (isAnimating) return;   // no flip while the card flies off (B17)
   isFlipped = !isFlipped;
   elCard.classList.toggle('flipped', isFlipped);
   updateFaceVisibility();
@@ -1085,7 +1098,6 @@ function setAnswerButtonsVisible(visible) {
 
 function answer(correct) {
   prevState = { card: activeDeck[cardIndex], correct, hits, misses, cardIndex };
-  canGoBack = true;
   refreshBackBtn();
 
   if (!correct) missedCards.push(activeDeck[cardIndex]._id);
@@ -1106,13 +1118,12 @@ function goBack() {
     if (idx !== -1) missedCards.splice(idx, 1);
   }
   prevState = null;
-  canGoBack = false;
   refreshBackBtn();
   renderCard();
 }
 
 function refreshBackBtn() {
-  elBtnGoBack.style.display = canGoBack ? '' : 'none';
+  elBtnGoBack.style.display = prevState ? '' : 'none';
 }
 
 function exitStudy() {
@@ -1137,6 +1148,7 @@ function showDone() {
   elDoneHit.textContent     = hits;
   elDoneMiss.textContent    = misses;
   elBtnMissed.style.display = misses > 0 ? '' : 'none';
+  document.getElementById('btn-undo-last').style.display = prevState ? '' : 'none';
 
   showScreen('screen-done');
 }
@@ -1160,11 +1172,6 @@ function commitAnswer(correct) {
 
   if (typeof navigator.vibrate === 'function') {
     navigator.vibrate(correct ? 20 : [10, 40, 10]);
-  }
-
-  if (!animScene) {
-    isAnimating = false;
-    return answer(correct);
   }
 
   const dir = correct ? 1 : -1;
@@ -1298,7 +1305,13 @@ document.getElementById('btn-exit-study').addEventListener('click', exitStudy);
 elCard.addEventListener('click', flipCard);
 document.getElementById('btn-hit').addEventListener('click',  () => commitAnswer(true));
 document.getElementById('btn-miss').addEventListener('click', () => commitAnswer(false));
-document.getElementById('btn-study-again').addEventListener('click',    () => startStudy(lastDeck.slice()));
+document.getElementById('btn-study-again').addEventListener('click',    () => startStudy(selectionDeck.slice()));
+// Undo the answer to the last card: back to the study screen, on that card (B16)
+document.getElementById('btn-undo-last').addEventListener('click', () => {
+  showScreen('screen-study');
+  goBack();
+  elCard.focus({ preventScroll: true });
+});
 document.getElementById('btn-missed').addEventListener('click', () => {
   // Resolve missed card IDs back to card objects from lastDeck
   const missedSet = new Set(missedCards);

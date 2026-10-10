@@ -19,6 +19,7 @@
       --font-card:   'Lora', Georgia, serif;
       --font-mono:   'Menlo','Monaco',monospace;
       --ease:        cubic-bezier(.4,0,.2,1);
+      --flip-ms:     420ms;   /* card flip; js/flashcards.js reads it as FLIP_MS */
     }
 
     html, body {
@@ -363,6 +364,7 @@
     .toggle-label { font-size: 14px; color: var(--ink); }
     .toggle-hint  { font-size: 12px; color: var(--ink-soft); }
     .toggle-row.disabled { opacity: .45; pointer-events: none; }
+    .toggle-row:disabled { cursor: default; }   /* also a saved deck: the switch stays on */
 
     .storage-meter {
       font-size: 11px; color: var(--ink-soft);
@@ -445,7 +447,7 @@
       width: 100%; height: 260px;
       position: relative;
       transform-style: preserve-3d;
-      transition: transform .42s var(--ease);
+      transition: transform var(--flip-ms) var(--ease);
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
