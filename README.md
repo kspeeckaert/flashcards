@@ -24,10 +24,10 @@ The app looks for a new version each time you open it while you are online.
 
 1. Click "Choose file…", or drag a `.md` file onto the drop area.
 2. Select the sections that you want to study.
-3. Set the options: shuffle, reverse (answer becomes question), and save.
+3. Set the options: shuffle and reverse (answer becomes question). Each new deck starts with shuffle on and reverse off.
 4. Click "Study →".
 
-If you turn on "Save this deck", the app keeps the deck in the storage of the browser. Saved decks show on the start screen. To delete a saved deck, swipe it to the left on a touch screen, or click the trash icon on a desktop.
+To keep a deck in the storage of the browser, turn on "Save this deck". The app saves the deck at once and shows "(saved in this browser)". Saved decks show on the start screen. If you load a file that is already saved with the same content, the switch shows that it is saved, and the app does not save a second copy. To delete a saved deck, swipe it to the left on a touch screen, or click the trash icon on a desktop.
 
 Saved decks stay on one device and in one browser. They do not synchronize. Keep your `.md` files as the original copy.
 
@@ -38,11 +38,11 @@ Saved decks stay on one device and in one browser. They do not synchronize. Keep
 | Show the answer | Click or tap the card, or press Space. If the card has the keyboard focus, Enter also works. |
 | Mark as correct | Press the Right arrow, swipe right, or click "Got it" |
 | Mark as incorrect | Press the Left arrow, swipe left, or click "Miss" |
-| Undo the last answer | Click "Undo" (top left) |
+| Undo the last answer | Click "Undo" (top left). After the last card, click "Undo last answer". |
 
 You can use the app with the keyboard only. Press Tab to move between the controls. Press Space or Enter to select a section, to change a switch, or to open a saved deck. When a study session starts, the card has the keyboard focus. If a button has the focus, Space and Enter operate that button.
 
-After the last card, you can study the deck again, study only the cards that you missed, change the sections, or load a different deck.
+After the last card, you can study the deck again, study only the cards that you missed, change the sections, or load a different deck. "Study again" uses all cards of the selected sections, also after a round with only the missed cards.
 
 ## Card format
 

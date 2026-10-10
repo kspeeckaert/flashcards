@@ -203,7 +203,7 @@ Rules:
 
 ### Key functions
 
-- `parseMD(text, filename)` — parses markdown into `{ filename, name, sections: [{title, cards:[{_id, front, back, frontMedia, backMedia}]}] }` (see "Markdown format"). `front` is the heading plus any extra front text. Each card receives a stable `_id` (integer) assigned during parsing — used for missed-card tracking to avoid reference-equality fragility. `####`+ headings trigger a user-facing warning and are skipped. `###` cards that appear before any `##` section are silently grouped under a synthetic `{ title: 'Cards' }` section — this is intentional to tolerate decks without explicit sections.
+- `parseMD(text, filename, { warn = true })` — parses markdown into `{ filename, name, sections: [{title, cards:[{_id, front, back, frontMedia, backMedia}]}] }` (see "Markdown format"). `front` is the heading plus any extra front text. Each card receives a stable `_id` (integer) assigned during parsing — used for missed-card tracking to avoid reference-equality fragility. `####`+ headings trigger a user-facing warning and are skipped. `###` cards that appear before any `##` section are silently grouped under a synthetic `{ title: 'Cards' }` section — this is intentional to tolerate decks without explicit sections. `loadDeckById()` passes `warn: false`, because the warnings already showed when the deck was loaded from its file.
 - `setCardContent(el, text)` — renders markdown (and math, once KaTeX is loaded) into a card face via `renderMarkdown()`: `marked` + `DOMPurify`, then `fitText()`; wrapped in try/catch, falls back to plain text on error. If the text contains `$` and KaTeX is not loaded yet, it loads KaTeX and renders again; a sequence number in `el.dataset.renderSeq` stops that second render if newer text was set on the face
 - `fitText(el)` — binary-search font-size (11 px minimum) to fit card content without overflow. Runs the search on an off-screen, fixed-position clone (without its `id`), so each read forces a layout of the small clone only, and applies the result to the live element in a single write. It uses `el.clientWidth`, not `getBoundingClientRect()`, because the bounding box includes CSS transforms and is narrower during a flip or a swipe. KaTeX scales proportionally with inherited `font-size` (`1em`) so no special treatment is needed for display math.
 - `refitCardText()` — fits both faces again, at most once per animation frame, and only while the study screen is visible. A `ResizeObserver` on `.card` calls it when the card width changes (window resize, rotation). `document.fonts.ready` and the `loadingdone` event call it when a web font finishes loading. The card has a fixed height and fills the width, so fitting the text cannot trigger the observer again.
@@ -216,20 +216,28 @@ Rules:
 
 All state is module-level variables (`activeDeck`, `cardIndex`, `hits`, `misses`, `isFlipped`, `isReversed`, `prevState`, etc.). There is no framework.
 
-`missedCards` stores card `_id` integers (not card objects) to avoid reference-equality fragility across shuffled copies. "Study missed" resolves them back to card objects via a `Set` lookup against `lastDeck`.
+`missedCards` stores card `_id` integers (not card objects) to avoid reference-equality fragility across shuffled copies. "Study missed" resolves them back to card objects via a `Set` lookup against `lastDeck` (the cards of the last round). "Study again" uses `selectionDeck` (the cards of the selected sections), so it returns to the full selection after a missed-cards round.
 
-`deckSwipeRevealed` is a module-level `Map<deckId, bool>` shared between `initDeckSwipe()` and the global `touchstart` handler so both the DOM transform reset and the logical revealed state stay in sync when the deck list rebuilds.
+`buildSelectScreen()` resets shuffle to on and reverse to off for each newly loaded deck. "Change sections" keeps both.
 
-The undo feature supports a single level of undo only — `prevState` captures the state before the last committed answer, and undoing restores it. This is by design: multi-level undo adds complexity with little practical benefit for a flashcard study flow. Undo always returns the card face-up — intentional.
+`deckSwipeRevealed` is a module-level `Map<deckId, bool>` shared between `initDeckSwipe()` and the global `touchstart` handler so both the DOM transform reset and the logical revealed state stay in sync. `renderDeckList()` clears it, because the rebuilt items start closed.
+
+The undo feature supports a single level of undo only — `prevState` captures the state before the last committed answer (`null` means nothing to undo), and undoing restores it. This is by design: multi-level undo adds complexity with little practical benefit for a flashcard study flow. Undo always returns the card face-up — intentional. After the last card, the done screen shows "Undo last answer" (`#btn-undo-last`) while `prevState` is set; it returns to the study screen and calls `goBack()`.
+
+`flipCard()` does nothing while `isAnimating` is true (the fly-off after an answer).
+
+`FLIP_MS` comes from the CSS variable `--flip-ms`, which also sets the `.card` transition. Change the flip duration only there.
 
 ### Persistence
 
 Saved decks live in IndexedDB, database `flashcards`, with two object stores keyed by deck id:
 
-- `decks` holds the metadata for the deck list: `{ id, name, sections, cards, createdAt }`.
+- `decks` holds the metadata for the deck list: `{ id, name, sections, cards, createdAt, hash }`. `hash` is the SHA-256 of the raw markdown (`deckHash()`). It is `null` without `crypto.subtle` (plain HTTP on a LAN address), and decks saved before version 1.50 have none.
 - `bodies` holds the raw markdown, including embedded images: `{ id, raw }`.
 
-The deck list reads only `decks`. `getDecks()`, `getDeckRaw()`, `putDeck()`, and `removeDeck()` are async. `putDeck()` resolves only after the transaction completes. `saveDeck()` sets `hasSavedCurrentDeck` before the write and resets it if the write fails, so a failed save shows the toggle again. The first successful save calls `navigator.storage.persist()`. It is not called at startup, because Firefox shows a permission prompt. The storage meter uses `navigator.storage.estimate()`. If IndexedDB is not available, `saveBlocked` is true and the save toggle is disabled.
+The deck list reads only `decks`. `getDecks()`, `getDeckRaw()`, `putDeck()`, and `removeDeck()` are async. `putDeck()` resolves only after the transaction completes.
+
+The save switch saves at once: its click calls `saveDeck()`. `saveDeck()` sets `hasSavedCurrentDeck` before the write and resets it if the write fails. If a saved deck has the same `hash`, it writes nothing. `loadFile()` also looks up the hash and marks the deck as saved if it finds one. `refreshSaveToggle()` shows the state: on, disabled, and "(saved in this browser)" for a saved deck; off and disabled with "(storage not available)" without IndexedDB. The first successful save calls `navigator.storage.persist()`. It is not called at startup, because Firefox shows a permission prompt. The storage meter uses `navigator.storage.estimate()`. If IndexedDB is not available, `saveBlocked` is true and the save toggle is disabled.
 
 Versions before 1.43 saved decks in `localStorage` under the key `fc_decks`. The app does not read or migrate that key. Session state (score, position) is not persisted.
 
@@ -256,7 +264,7 @@ The media panel (`#card-media-panel`) sits **below** `.answer-btns` in the DOM, 
 - The card is `role="button"` with `tabindex="0"`. Enter (when the card has focus) and Space flip it. `startStudy()` moves the focus to the card.
 - `updateFaceVisibility()` sets `aria-hidden` on the face that is not visible, so screen readers cannot read the answer before the flip.
 - `setAnswerButtonsVisible()` sets `inert` on `.answer-btns` while they are hidden, so Tab cannot reach "Got it" or "Miss" before the flip.
-- The shuffle, reverse, and save toggles are `<button role="switch">` elements. Always change them with `setSwitch(id, on)`, which updates `aria-checked` and the knob class together. The save switch gets the `disabled` attribute when storage is not available.
+- The shuffle, reverse, and save toggles are `<button role="switch">` elements. Always change them with `setSwitch(id, on)`, which updates `aria-checked` and the knob class together. The save switch gets the `disabled` attribute when the deck is saved or storage is not available.
 - Section rows are `role="checkbox"` with `aria-checked` and `tabindex="0"`. Space and Enter toggle them. The hidden `<input type="checkbox">` inside each row still holds the state for `refreshCount()`.
 - In the deck list, `.deck-item-content` is `role="button"` with `tabindex="0"` (Enter or Space opens the deck). The trash button has an `aria-label` with the deck name and shows on `:focus-visible`. The swipe-only `.deck-delete-reveal` button has `tabindex="-1"` and `aria-hidden="true"`.
 - The global keydown handler ignores keys with Cmd, Ctrl, or Alt (browser shortcuts), and leaves Space and Enter to a focused button, link, or form field.
@@ -277,12 +285,15 @@ Helper tool, part of the same PWA. It loads `js/version.js`, `js/pwa.js`, `css/p
 
 ### Key functions (`js/img-to-md.js`)
 
-- `readFiles(files)` — validates type and deduplicates by filename, then runs `processImage()` on all files with `Promise.allSettled()`. It adds the entries in the order the user chose the files and calls `renderList()` and `renderOutput()` once. A file that cannot be decoded gives an alert and is skipped.
+- `imageType(file)` — the MIME type of a file, from the file extension if the browser gives none. `processImage()` then also corrects the `data:` prefix that `FileReader` writes.
+- `readFiles(files)` — validates type and deduplicates by filename (one alert for all unsupported files, one for all duplicates), then runs `processImage()` on all files with `Promise.allSettled()`. It adds the entries in the order the user chose the files and calls `renderList()` and `renderOutput()` once. A file that cannot be decoded gives an alert and is skipped.
 - `processImage(file)` — returns `{ dataUri, width, height, note }`. SVG and GIF stay as they are. Other images are drawn on a canvas with the longest side at most `MAX_SIDE` (1200 px). `looksLikePhoto()` samples the pixels: no transparency and more than `PHOTO_MIN_COLORS` (4096) distinct colors means JPEG (`JPEG_QUALITY` 0.85), otherwise PNG. Safari cannot encode WebP from a canvas, so WebP is never an output. If the result is not smaller than the original data URI, the original is kept.
 - `uniqueKey(base)` — derives a collision-free key from a filename; snapshots existing keys into a `Set` once before the loop to avoid repeated array mapping. Keys are compared in lower case, because Markdown labels are case-insensitive (`isDuplicateKey()` does the same).
 - `snippetFor(entry)` — returns `![alt][key]`, with the key as alt text if the alt field is empty. Brackets are removed from the alt text.
 - `copyText(text, btn)` — writes to clipboard and toggles a "✓ Copied" state on the button. Targets `btn.querySelector('span') || btn` for the label so SVG children on icon-bearing buttons are not clobbered.
 - `renderList()` — rebuilds the image list UI from `entries`; wires key-input, alt-input, remove, and snippet-copy handlers.
+- `invalidKeys` / `refreshCopyState()` — while a key is invalid, its snippet gets the `stale` class, its copy button and "Copy definitions" are disabled, and `#output-stale` explains why: the output still holds the last valid key.
+- `esc(s)` — the same HTML escape function as in `js/flashcards.js` (`& < > " '`).
 - `renderOutput()` — rebuilds the definitions `<pre>` block from `entries` and the total size in `#output-total` (the data URI length, which is what the deck stores); hides the panel when empty.
 
 ### Behaviour notes
