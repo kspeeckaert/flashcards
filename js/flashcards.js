@@ -51,6 +51,7 @@ let isAnimating       = false;
 let prevState         = null;
 let canGoBack         = false;
 let btnShowTimeout    = null;
+let backContentTimeout = null;  // deferred back-face update in renderCard()
 
 // Persistence state
 let saveEnabled          = false;
@@ -555,14 +556,14 @@ function buildSelectScreen() {
   document.getElementById('deck-name').textContent = parsedDeck.name;
   const list = document.getElementById('section-list');
   list.innerHTML = parsedDeck.sections.map((sec, i) =>
-    `<label class="section-item checked" data-idx="${i}">
+    `<div class="section-item checked" data-idx="${i}">
       <input type="checkbox" checked>
       <div class="chk">${chkSVG}</div>
       <div class="sec-label">
         <div class="name">${esc(sec.title)}</div>
         <div class="count">${sec.cards.length} card${sec.cards.length !== 1 ? 's' : ''}</div>
       </div>
-    </label>`
+    </div>`
   ).join('');
 
   list.querySelectorAll('.section-item').forEach(el =>
@@ -669,13 +670,18 @@ function renderCard() {
   const wasFlipped = elCard.classList.contains('flipped');
 
   if (btnShowTimeout) { clearTimeout(btnShowTimeout); btnShowTimeout = null; }
+  // Cancel a pending back-face update from the previous render, or it overwrites this card's answer (e.g. after undo)
+  if (backContentTimeout) { clearTimeout(backContentTimeout); backContentTimeout = null; }
   elCard.classList.remove('flipped');
   isFlipped = false;  // always show the new card face-up, including after undo — intentional
   elAnswerBtns.classList.remove('visible');
 
   // Defer back content to avoid a flash during the flip-back transition
   if (wasFlipped) {
-    setTimeout(() => setCardContent(elCardBack, back), FLIP_MS);
+    backContentTimeout = setTimeout(() => {
+      backContentTimeout = null;
+      setCardContent(elCardBack, back);
+    }, FLIP_MS);
   } else {
     setCardContent(elCardBack, back);
   }
@@ -920,7 +926,10 @@ document.getElementById('btn-missed').addEventListener('click', () => {
   const missedSet = new Set(missedCards);
   startStudy(lastDeck.filter(c => missedSet.has(c._id)));
 });
-document.getElementById('btn-change-sections').addEventListener('click', () => showScreen('screen-select'));
+document.getElementById('btn-change-sections').addEventListener('click', () => {
+  showScreen('screen-select');
+  refreshSaveToggle();
+});
 document.getElementById('btn-load-new').addEventListener('click',        () => showScreen('screen-load'));
 
 // ── Tap hint text ──────────────────────────────────────────────
