@@ -145,7 +145,9 @@ flowchart LR
 ```
 ````
 
-This version shows the code of the diagram. A later version draws the diagram.
+The app draws the diagram with Mermaid (<https://mermaid.js.org>). The diagram scales down to the width of the screen. If the code of a diagram has an error, the app shows the message "This diagram has an error. Its source:" and the code.
+
+The app loads Mermaid the first time that it shows a diagram. Mermaid is stored with the other files of the app, so diagrams also show offline.
 
 ## Browser support
 
@@ -172,7 +174,7 @@ On `localhost` and `127.0.0.1`, the app does not start its service worker (the s
 
 The script `scripts/build.js` does three tasks:
 
-1. It copies the browser libraries (marked, DOMPurify, KaTeX) and the fonts (Lora, DM Sans) from `node_modules/` into `vendor/`.
+1. It copies the browser libraries (marked, DOMPurify, KaTeX, Mermaid) and the fonts (Lora, DM Sans) from `node_modules/` into `vendor/`.
 2. It writes `vendor/fonts/fonts.css` for those fonts.
 3. It writes a block into `sw.js`. The block contains the app version, the list of files for offline use, and a hash of their contents.
 
