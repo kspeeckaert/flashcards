@@ -34,8 +34,9 @@ const LIBRARIES = [
   ['dompurify/LICENSE',                     'dompurify/LICENSE'],
   ['katex/dist/katex.min.js',               'katex/katex.min.js'],
   ['katex/dist/katex.min.css',              'katex/katex.min.css'],
-  ['katex/dist/contrib/auto-render.min.js', 'katex/contrib/auto-render.min.js'],
   ['katex/LICENSE',                         'katex/LICENSE'],
+  ['marked-katex-extension/lib/index.umd.js', 'marked-katex-extension/index.umd.js'],
+  ['marked-katex-extension/LICENSE',          'marked-katex-extension/LICENSE'],
   ['mermaid/dist/mermaid.min.js',           'mermaid/mermaid.min.js'],
   ['mermaid/LICENSE',                       'mermaid/LICENSE'],
 ];

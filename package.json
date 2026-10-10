@@ -12,6 +12,7 @@
     "dompurify": "3.4.16",
     "katex": "0.18.11",
     "marked": "18.1.0",
+    "marked-katex-extension": "5.1.13",
     "mermaid": "12.1.0"
   }
 }
