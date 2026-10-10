@@ -251,6 +251,17 @@ The media panel (`#card-media-panel`) sits **below** `.answer-btns` in the DOM, 
 - The SVG scales down to the panel width (`max-width: 100%`) and never up
 - The panel is cleared (`display: none`, `removeAttribute('src')`) when navigating away from the study screen — using `removeAttribute` rather than `src = ''` avoids a spurious request to the page URL
 
+### Accessibility
+
+- The card is `role="button"` with `tabindex="0"`. Enter (when the card has focus) and Space flip it. `startStudy()` moves the focus to the card.
+- `updateFaceVisibility()` sets `aria-hidden` on the face that is not visible, so screen readers cannot read the answer before the flip.
+- `setAnswerButtonsVisible()` sets `inert` on `.answer-btns` while they are hidden, so Tab cannot reach "Got it" or "Miss" before the flip.
+- The shuffle, reverse, and save toggles are `<button role="switch">` elements. Always change them with `setSwitch(id, on)`, which updates `aria-checked` and the knob class together. The save switch gets the `disabled` attribute when storage is not available.
+- Section rows are `role="checkbox"` with `aria-checked` and `tabindex="0"`. Space and Enter toggle them. The hidden `<input type="checkbox">` inside each row still holds the state for `refreshCount()`.
+- In the deck list, `.deck-item-content` is `role="button"` with `tabindex="0"` (Enter or Space opens the deck). The trash button has an `aria-label` with the deck name and shows on `:focus-visible`. The swipe-only `.deck-delete-reveal` button has `tabindex="-1"` and `aria-hidden="true"`.
+- The global keydown handler ignores keys with Cmd, Ctrl, or Alt (browser shortcuts), and leaves Space and Enter to a focused button, link, or form field.
+- `:focus-visible` shows a 2 px accent outline on every focusable element.
+
 ### SVG assets
 
 - `img/icons.svg` — SVG sprite; all UI icons are referenced via `<use href="img/icons.svg#icon-name"/>`

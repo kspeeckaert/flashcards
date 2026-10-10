@@ -35,10 +35,12 @@ Saved decks stay on one device and in one browser. They do not synchronize. Keep
 
 | Action | Input |
 |---|---|
-| Show the answer | Click or tap the card, or press Space |
+| Show the answer | Click or tap the card, or press Space. If the card has the keyboard focus, Enter also works. |
 | Mark as correct | Press the Right arrow, swipe right, or click "Got it" |
 | Mark as incorrect | Press the Left arrow, swipe left, or click "Miss" |
 | Undo the last answer | Click "Undo" (top left) |
+
+You can use the app with the keyboard only. Press Tab to move between the controls. Press Space or Enter to select a section, to change a switch, or to open a saved deck. When a study session starts, the card has the keyboard focus. If a button has the focus, Space and Enter operate that button.
 
 After the last card, you can study the deck again, study only the cards that you missed, change the sections, or load a different deck.
 
