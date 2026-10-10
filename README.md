@@ -59,18 +59,25 @@ goodbye
 
 ## Chapter 2: Food & Drink
 
-### 食べる
-to eat
+### What does this kanji mean?
+食
+
+---
+
+food, to eat
 ```
 
-The app reads the headings as follows:
+The app reads the file as follows:
 
 - `#`: the name of the deck.
 - `##`: the start of a section.
 - `###`: the front of a card (the question).
 - The lines below a `###` heading: the back of the card (the answer).
+- A line with only `---` in a card: the end of the front. The lines between the `###` heading and `---` belong to the front, and the lines after `---` belong to the back.
 
-The answer supports Markdown, for example bold, italic, code, and lists. If a card has no answer, the app skips it and shows a warning. The app ignores headings with `####` or more and shows a warning.
+If a card has no `---` line, all lines below the heading belong to the back. Put a blank line before `---`. Without it, other Markdown tools show the line above `---` as a heading. A card uses only its first `---` line as the separator.
+
+Both sides support Markdown, for example bold, italic, code, and lists. If a card has no answer, the app skips it and shows a warning. The app ignores headings with `####` or more and shows a warning. Inside a code block (between ```` ``` ```` lines), the app does not read `#` or `---` lines as headings or separators.
 
 ### Math
 
@@ -79,34 +86,66 @@ The app shows math with KaTeX:
 - Inline math: `$E = mc^2$`
 - Display math: `$$\int_{-\infty}^{\infty} e^{-x^2}\, dx = \sqrt{\pi}$$`
 
+### Images and diagrams
+
+Each side of a card can show one image or one diagram. The app shows it below the answer buttons, outside the card:
+
+- Before you flip the card, the app shows the image or diagram of the front.
+- After you flip the card, the app shows the image or diagram of the back.
+- If the visible side has no image or diagram, the app shows nothing below the buttons.
+
+If a side has an image or a diagram but no text, the card shows "see image" or "see diagram". In reverse mode, the front and the back change places, together with their images and diagrams.
+
+If a side has more than one image or diagram, the app uses the first one and shows a warning.
+
 ### Images
 
-A deck can contain images as base64 data, so the deck stays one file. The app supports PNG, JPEG, WebP, GIF, and SVG.
+A deck contains its images as base64 data, so the deck stays one file. The app supports PNG, JPEG, WebP, GIF, and SVG. The deck uses standard Markdown reference images: `![description][key]` in the card, and a definition line `[key]: data:image/...` at the end of the file.
 
 1. Open the Image → Markdown tool. The start screen of the app has a link to it.
 2. Drop your image files on the tool, or click "Choose images…".
-3. Set a short key for each image.
-4. Copy the frontmatter block, and paste it at the top of your `.md` file, before the `#` line.
-5. To show an image with an answer, add `<!-- img:key -->` to the answer.
+3. Set a short key and a description for each image.
+4. Copy the image definitions, and paste them at the end of your `.md` file.
+5. Copy the line `![description][key]` of an image, and paste it in the front or the back of a card.
 
 Example:
 
 ```md
+### Which bird is this?
+![A small bird with a red chest][robin]
+
 ---
-images:
-  wave_hand: data:image/png;base64,...
----
 
-# My Japanese Deck
+European robin
 
-## Chapter 1: Greetings
-
-### さようなら
-goodbye
-<!-- img:wave_hand -->
+[robin]: data:image/png;base64,...
 ```
 
-The app shows the image below the answer buttons, outside the card. A card can show one image.
+Rules for images:
+
+- The key is not case-sensitive. `[Robin]` and `[robin]` are the same key.
+- The app also reads `![robin][]`, `![robin]`, and `![description](data:image/png;base64,...)`.
+- The app shows only `data:image/...` images, because it must work offline. For an image from a web address, the app shows a warning.
+- If a key has no definition, or a definition is not used, the app shows a warning.
+
+Decks from version 1.43 and earlier use `<!-- img:key -->` and an `images:` block at the top of the file. The app does not read that format and shows a warning. To convert such a deck, make the image definitions again with the Image → Markdown tool.
+
+### Diagrams
+
+A diagram is a Mermaid code block:
+
+````md
+### Draw the water cycle
+
+---
+
+```mermaid
+flowchart LR
+  E[Evaporation] --> C[Condensation] --> P[Precipitation] --> E
+```
+````
+
+This version shows the code of the diagram. A later version draws the diagram.
 
 ## Browser support
 

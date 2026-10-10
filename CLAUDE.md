@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A flashcard web app, delivered as a Progressive Web App (PWA) on GitHub Pages: <https://kspeeckaert.github.io/flashcards/flashcards.html>. It works offline after the first visit. The app code has no build step. A small build script copies the libraries into `vendor/` and writes the offline file list into `sw.js` (see "Service worker and build script").
 
-A companion tool `img-to-md.html` converts images to base64 and generates the frontmatter block needed for image-enabled decks.
+A companion tool `img-to-md.html` converts images to base64 and generates the reference definitions (`[key]: data:image/...`) for image-enabled decks.
 
 ## File structure
 
@@ -157,49 +157,42 @@ Cards are parsed by `parseMD()`:
 - `#` heading → deck name
 - `##` heading → section title
 - `###` heading → card front
-- Lines following `###` → card back (supports Markdown and LaTeX math)
+- Lines after `###` → card back, unless the card has a `---` line: then the lines between `###` and the first `---` are extra front text and media, and the lines after it are the back
+- Both sides support Markdown and LaTeX math
+
+`parseMD()` runs two passes. Pass 1 finds fenced code blocks (``` or ~~~, CommonMark closing rules) and collects reference definitions `[label]: destination` from the whole file (outside fences) and removes them. Pass 2 reads headings, the `---` separator, and card lines. Lines inside a fence are never read as headings, separators, or definitions. An unclosed fence produces a warning.
+
+All warnings (skipped cards, `####` headings, unknown or unused image labels, non-data image URLs, more than one media item on a side, the old image format) are collected and shown in one `alert()` after the parse.
 
 Math is rendered by KaTeX via `renderMathInElement()` after the marked/DOMPurify pipeline:
 - `$...$` → inline math
 - `$$...$$` → display (block) math
 
-#### Image support
+#### Media: images and diagrams
 
-Decks can embed images using a YAML frontmatter block at the top of the `.md` file:
-
-```md
----
-images:
-  key_name: data:image/png;base64,...
-  another_key: data:image/svg+xml;base64,...
----
-
-# Deck Name
-```
-
-Each image is referenced from a card's answer body with an HTML comment:
-
-```md
-### Card front
-Card back text here
-<!-- img:key_name -->
-```
+Each side of a card has at most one media item, stored as `card.frontMedia` and `card.backMedia`:
+- `{ type: 'image', src, alt }` — from `![alt][label]`, `![label][]`, `![label]` (only if the label has a definition), or inline `![alt](data:image/...)`
+- `{ type: 'diagram', code }` — from a fenced block with info string `mermaid`
+- `null` — no media
 
 Rules:
-- The `<!-- img:key -->` comment is stripped from the rendered back text and stored as `card.imageKey`
-- Only one image per card is supported
-- The image comment is invisible in all standard markdown previewers
-- Image keys must start with a letter or underscore and contain only `[a-zA-Z0-9_-]`
-- Use `img-to-md.html` to convert image files to base64 and generate the frontmatter block
+- Labels match the CommonMark way: case-insensitive, runs of whitespace count as one space (`normalizeLabel()`). The first definition of a label wins.
+- Only `data:image/` destinations are accepted. Other URLs give a warning, because the app must work offline.
+- The parser removes the media markup from the line and keeps the rest of the line. Image markup inside an inline code span stays as text.
+- A second media item on the same side gives a warning and is dropped.
+- A card is skipped only if its back has neither text nor media.
+- The old format (YAML `images:` frontmatter and `<!-- img:key -->`) is not supported. A `<!-- img:... -->` comment produces one warning and is removed.
+- Use `img-to-md.html` to convert image files to base64 definitions.
 
 ### Key functions
 
-- `parseMD(text, filename)` — parses markdown into `{ name, sections: [{title, cards:[{_id, front, back, imageKey}]}], images: {key: dataURI} }`; strips YAML frontmatter before card parsing. Each card receives a stable `_id` (integer) assigned during parsing — used for missed-card tracking to avoid reference-equality fragility. `####`+ headings trigger a user-facing warning and are skipped. `###` cards that appear before any `##` section are silently grouped under a synthetic `{ title: 'Cards' }` section — this is intentional to tolerate decks without explicit sections.
+- `parseMD(text, filename)` — parses markdown into `{ filename, name, sections: [{title, cards:[{_id, front, back, frontMedia, backMedia}]}] }` (see "Markdown format"). `front` is the heading plus any extra front text. Each card receives a stable `_id` (integer) assigned during parsing — used for missed-card tracking to avoid reference-equality fragility. `####`+ headings trigger a user-facing warning and are skipped. `###` cards that appear before any `##` section are silently grouped under a synthetic `{ title: 'Cards' }` section — this is intentional to tolerate decks without explicit sections.
 - `setCardContent(el, text)` — renders markdown into a card face via `marked` + `DOMPurify` + `renderMathInElement()`, then calls `fitText()`; wrapped in try/catch, falls back to plain text on error
 - `fitText(el)` — binary-search font-size to fit card content without overflow. Runs the search on a detached off-screen clone so no forced reflows occur on the live element; applies the result in a single write. KaTeX scales proportionally with inherited `font-size` (`1em`) so no special treatment is needed for display math.
-- `renderCard()` — updates the DOM for the current card, including showing/hiding the image panel
+- `renderCard()` — updates the DOM for the current card. Uses `faceText()` so that a side with media but no text shows "see image" or "see diagram". Calls `updateMediaPanel()`
+- `updateMediaPanel()` — shows the media of the visible side in the media panel (front before the flip, back after it; swapped in reverse mode), or hides the panel. Called by `renderCard()` and `flipCard()`
 - `commitAnswer(hit)` — records the answer, triggers swipe/fly animation, advances to next card
-- `showScreen(id)` — switches the active screen; clears image panel when leaving study screen
+- `showScreen(id)` — switches the active screen; clears the media panel (`clearMediaPanel()`) when leaving the study screen
 
 ### State
 
@@ -226,12 +219,14 @@ Versions before 1.43 saved decks in `localStorage` under the key `fc_decks`. The
 
 Card content must always be fully visible without scrolling. `fitText()` shrinks the font to make content fit within the fixed card height. When adding features that render into card faces, ensure the result still fits completely — do not allow vertical overflow or scrolling inside a card, nor clip the content.
 
-### Image panel layout
+### Media panel layout
 
-The image panel (`#card-image-panel`) sits **below** `.answer-btns` in the DOM, outside the card flip mechanism. Key constraints:
-- The answer buttons use `opacity` only for their show/hide transition (no `translateY`) so they always occupy their layout space — this prevents the image from shifting when the card is flipped
-- The image is never shown inside the card faces
+The media panel (`#card-media-panel`) sits **below** `.answer-btns` in the DOM, outside the card flip mechanism. It holds `#card-image` and `#card-diagram`, and shows at most one of them. Key constraints:
+- The panel shows the media of the visible side only, so back media never gives the answer away before the flip. If the visible side has no media, the panel is hidden. Nothing in the layout sits below the panel, so its height change on a flip moves nothing.
+- The answer buttons use `opacity` only for their show/hide transition (no `translateY`) so they always occupy their layout space — this prevents the panel from shifting when the card is flipped
+- Media is never shown inside the card faces
 - `max-width: 100%` with `height: auto` preserves aspect ratio and prevents upscaling beyond natural size
+- `#card-diagram` shows the Mermaid source as text for now. Mermaid rendering is planned
 - The panel is cleared (`display: none`, `removeAttribute('src')`) when navigating away from the study screen — using `removeAttribute` rather than `src = ''` avoids a spurious request to the page URL
 
 ### SVG assets
@@ -245,17 +240,18 @@ The version is `APP_VERSION` in `js/version.js`, format `<major>.<minor>.<YYYYMM
 
 ## img-to-md.html
 
-Helper tool, part of the same PWA. It loads `js/version.js`, `js/pwa.js`, `css/pwa.css`, and the local fonts, but no other libraries. The wordmark at the top links back to `flashcards.html` (an installed app has no browser back button), and the start screen of the app links to the helper. Drop image files → generates base64 YAML frontmatter for deck files.
+Helper tool, part of the same PWA. It loads `js/version.js`, `js/pwa.js`, `css/pwa.css`, and the local fonts, but no other libraries. The wordmark at the top links back to `flashcards.html` (an installed app has no browser back button), and the start screen of the app links to the helper. Drop image files → generates one reference definition per image (`[key]: data:image/...`) and a `![alt][key]` snippet per image, with an alt text field.
 
 ### Key functions (`js/img-to-md.js`)
 
 - `readFiles(files)` — validates type and deduplicates by filename before reading. Uses a `pending` counter so `renderList()` and `renderOutput()` are called exactly once when all `FileReader` callbacks complete, not once per file.
-- `uniqueKey(base)` — derives a collision-free key from a filename; snapshots existing keys into a `Set` once before the loop to avoid repeated array mapping.
+- `uniqueKey(base)` — derives a collision-free key from a filename; snapshots existing keys into a `Set` once before the loop to avoid repeated array mapping. Keys are compared in lower case, because Markdown labels are case-insensitive (`isDuplicateKey()` does the same).
+- `snippetFor(entry)` — returns `![alt][key]`, with the key as alt text if the alt field is empty. Brackets are removed from the alt text.
 - `copyText(text, btn)` — writes to clipboard and toggles a "✓ Copied" state on the button. Targets `btn.querySelector('span') || btn` for the label so SVG children on icon-bearing buttons are not clobbered.
-- `renderList()` — rebuilds the image list UI from `entries`; wires key-input, remove, and snippet-copy handlers.
-- `renderOutput()` — rebuilds the frontmatter `<pre>` block from `entries`; hides the panel when empty.
+- `renderList()` — rebuilds the image list UI from `entries`; wires key-input, alt-input, remove, and snippet-copy handlers.
+- `renderOutput()` — rebuilds the definitions `<pre>` block from `entries`; hides the panel when empty.
 
 ### Behaviour notes
 
 - Dropping the same filename twice is detected and skipped with an alert — deduplication is by `filename`, not file content.
-- The "Copy frontmatter" button in `img-to-md.html` wraps its label text in a `<span>` so `copyText` can update just the text without touching the adjacent SVG icon.
+- The "Copy definitions" button in `img-to-md.html` wraps its label text in a `<span>` so `copyText` can update just the text without touching the adjacent SVG icon.
