@@ -166,6 +166,7 @@
     .md-h2  { color: var(--hit); }
     .md-h3  { color: var(--ink); }
     .md-body { color: var(--ink-soft); }
+    .md-sep  { color: var(--ink-faint); }
 
     .tool-link {
       margin-top: 16px;
@@ -533,8 +534,8 @@
     .btn-miss { background: var(--miss-soft); color: var(--miss); }
     .btn-hit:active, .btn-miss:active { opacity: .75; transform: scale(.97); }
 
-    /* ── Card image panel ─────────────────────────────── */
-    #card-image-panel {
+    /* ── Card media panel (image or diagram of the visible side) ── */
+    #card-media-panel {
       width: 100%;
       display: flex;
       justify-content: center;
@@ -546,6 +547,19 @@
       height: auto;
       border-radius: 10px;
       box-shadow: var(--shadow);
+    }
+    /* Diagram source, shown as text until Mermaid rendering is added */
+    #card-diagram {
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 0;
+      padding: 14px 16px;
+      background: var(--surface);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+      color: var(--ink-soft);
+      text-align: left;
     }
 
     /* ── Swipe overlay ────────────────────────────────── */

@@ -33,7 +33,7 @@ function loadKaTeX(cb) {
 // so marked.js has already executed by the time this script runs.
 
 // ── State ──────────────────────────────────────────────────────
-let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{_id,front,back,imageKey}]}], images:{} }
+let parsedDeck        = null;   // { filename, name, sections: [{title, cards:[{_id,front,back,frontMedia,backMedia}]}] }
 let activeDeck        = [];
 let lastDeck          = [];
 let missedCards       = [];     // stores card._id values (integers), not card objects
@@ -85,8 +85,9 @@ const elDoneSub     = document.getElementById('done-sub');
 const elDoneHit     = document.getElementById('done-hit');
 const elDoneMiss    = document.getElementById('done-miss');
 const elBtnMissed   = document.getElementById('btn-missed');
-const elImagePanel  = document.getElementById('card-image-panel');
+const elMediaPanel  = document.getElementById('card-media-panel');
 const elImage       = document.getElementById('card-image');
+const elDiagram     = document.getElementById('card-diagram');
 
 // ── Storage (IndexedDB) ────────────────────────────────────────
 // Two object stores, both keyed by deck id:
@@ -362,8 +363,7 @@ function showScreen(id) {
   // Leaving study screen: reset animation lock so it can't get stuck
   if (id !== 'screen-study') {
     isAnimating = false;
-    elImagePanel.style.display = 'none';
-    elImage.removeAttribute('src');
+    clearMediaPanel();
   }
 }
 
@@ -439,61 +439,165 @@ document.getElementById('btn-choose-file').addEventListener('click', () => {
   zone.addEventListener('drop',       e => { e.preventDefault(); zone.classList.remove('drag-over'); if (document.getElementById('screen-load').classList.contains('active')) loadFile(e.dataTransfer.files[0]); });
 })();
 
-// ── Markdown parser — format: # deck / ## section / ### card ──
+// ── Markdown parser ────────────────────────────────────────────
 //
-// Supports YAML frontmatter for image deduplication:
+//   # Deck name
+//   ## Section
+//   ### Card front (the question)
+//   Optional extra front text, and optionally one image or diagram
 //
-//   ---
-//   images:
-//     key_name: data:image/png;base64,...
-//   ---
+//   ---                            ← optional: the first "---" line splits front and back
 //
-// Reference an image from a card back body with:
-//   <!-- img:key_name -->
+//   Back text (the answer), and optionally one image or diagram
 //
+//   [label]: data:image/png;base64,...      ← image definitions, usually at the end of the file
+//
+// Without a "---" line, everything below the ### heading is the back.
+// Media (shown in the panel below the card, never on the card face), at most one per side:
+//   Image:   ![alt][label], ![label][], ![label]  (reference style, CommonMark label matching)
+//            or ![alt](data:image/...)            (inline)
+//   Diagram: a ```mermaid fenced code block
+// Lines inside fenced code blocks are never read as headings, separators, or definitions.
+
+const FENCE_RE      = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const DEFINITION_RE = /^ {0,3}\[([^\]]+)\]:\s*(\S+)(?:\s+.*)?$/;
+const SEPARATOR_RE  = /^ {0,3}---\s*$/;
+// ![alt](url "title") | ![alt][label] | ![alt][] | ![alt]
+const IMAGE_RE      = /!\[([^\]]*)\](?:\(\s*([^)\s]*)(?:\s+"[^"]*")?\s*\)|\[([^\]]*)\])?/g;
+const OLD_IMAGE_RE  = /<!--\s*img:[\w-]+\s*-->/;
+
+// CommonMark label matching: case-insensitive, runs of whitespace count as one space
+const normalizeLabel = label => label.trim().replace(/\s+/g, ' ').toLowerCase();
+
+// True if position `index` in `str` is inside an inline code span (odd number of backticks before it)
+const inCodeSpan = (str, index) => ((str.slice(0, index).match(/`/g) || []).length % 2) === 1;
+
 function parseMD(text, filename) {
-  // ── 1. Extract YAML frontmatter ──
-  const images = {};
-  let body = text;
-  const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
-  if (fmMatch) {
-    body = text.slice(fmMatch[0].length);
-    const fmBlock = fmMatch[1];
-    // Parse `images:` section — each entry is an indented `key: data-uri` line
-    const imgBlock = fmBlock.match(/^images:\r?\n((?:[ \t]+\S[^\r\n]*(?:\r?\n|$))*)/m);
-    if (imgBlock) {
-      for (const line of imgBlock[1].split('\n')) {
-        const m = line.match(/^[ \t]+([a-zA-Z_][\w-]*):\s*(.+)/);
-        if (m) images[m[1]] = m[2].trim();
-      }
+  const lines    = text.replace(/^﻿/, '').split(/\r?\n/);
+  const warnings = [];
+
+  // ── Pass 1: fenced code blocks and reference definitions ──
+  // fence[i]: null outside a fence, else { role: 'open'|'inside'|'close', info } for the line
+  const fence       = new Array(lines.length).fill(null);
+  const isDefLine   = new Array(lines.length).fill(false);
+  const definitions = new Map();   // normalized label → destination
+  let open = null;                 // the fence that is open: { char, len, line }
+  lines.forEach((line, i) => {
+    const f = line.match(FENCE_RE);
+    if (open) {
+      const closes = f && f[1][0] === open.char && f[1].length >= open.len && !f[2].trim();
+      fence[i] = { role: closes ? 'close' : 'inside' };
+      if (closes) open = null;
+      return;
     }
+    if (f && !(f[1][0] === '`' && f[2].includes('`'))) {
+      open = { char: f[1][0], len: f[1].length, line: i + 1 };
+      fence[i] = { role: 'open', info: f[2].trim().toLowerCase() };
+      return;
+    }
+    const d = line.match(DEFINITION_RE);
+    if (d) {
+      isDefLine[i] = true;
+      const label = normalizeLabel(d[1]);
+      if (!definitions.has(label)) definitions.set(label, d[2]);   // CommonMark: the first definition wins
+    }
+  });
+  if (open) warnings.push(`The code block that starts on line ${open.line} has no closing fence. The rest of the file is read as code.`);
+
+  // ── Pass 2: deck, sections, and cards ──
+  const sections   = [];
+  const usedLabels = new Set();
+  let deckName  = null;
+  let section   = null;
+  let card      = null;   // { heading, items: [line index, ...], sep: index into items or -1 }
+  let skipped   = 0;
+  let deepHd    = 0;
+  let oldFormat = false;
+  let cardSeq   = 0;
+
+  // Takes the media out of the lines of one side. Returns { text, media }.
+  function extractMedia(indexes, side) {
+    const out = [];
+    let media = null;
+    const addMedia = m => {
+      if (media) warnings.push(`Card "${card.heading}": more than one image or diagram on the ${side}. Only the first one is used.`);
+      else media = m;
+    };
+
+    for (let k = 0; k < indexes.length; k++) {
+      const i    = indexes[k];
+      const line = lines[i];
+
+      if (fence[i]) {
+        if (fence[i].role === 'open' && fence[i].info === 'mermaid') {
+          const code = [];
+          while (k + 1 < indexes.length && fence[indexes[k + 1]] && fence[indexes[k + 1]].role === 'inside') {
+            code.push(lines[indexes[++k]]);
+          }
+          if (k + 1 < indexes.length && fence[indexes[k + 1]] && fence[indexes[k + 1]].role === 'close') k++;
+          addMedia({ type: 'diagram', code: code.join('\n') });
+        } else {
+          out.push(line);
+        }
+        continue;
+      }
+
+      if (OLD_IMAGE_RE.test(line)) {
+        oldFormat = true;
+        const rest = line.replace(OLD_IMAGE_RE, '');
+        if (rest.trim()) out.push(rest.trimEnd());
+        continue;
+      }
+
+      let changed = false;
+      const rest = line.replace(IMAGE_RE, (whole, alt, url, ref, offset, str) => {
+        if (inCodeSpan(str, offset)) return whole;
+        let src;
+        if (url !== undefined) {
+          src = url;
+        } else {
+          const label = normalizeLabel(ref ? ref : alt);
+          if (!definitions.has(label)) {
+            if (ref === undefined) return whole;   // "![text]" with no definition is plain text
+            warnings.push(`Card "${card.heading}": there is no definition for the image label [${ref || alt}].`);
+            changed = true;
+            return '';
+          }
+          usedLabels.add(label);
+          src = definitions.get(label);
+        }
+        changed = true;
+        if (!/^data:image\//i.test(src)) {
+          warnings.push(`Card "${card.heading}": the image "${alt}" is not a data:image URI, so it is not shown. The app must work offline.`);
+          return '';
+        }
+        addMedia({ type: 'image', src, alt: alt.trim() });
+        return '';
+      });
+      if (changed && !rest.trim()) continue;   // the line held only media
+      out.push(changed ? rest.trimEnd() : line.trimEnd());
+    }
+    return { text: out.join('\n').trim(), media };
   }
-
-  // ── 2. Parse card content ──
-  const lines    = body.split('\n');
-  const sections = [];
-  let deckName   = null;
-  let section    = null;
-  let card       = null;
-  let backBuf    = [];
-  let cardImgKey = null;
-  let skipped    = 0;
-  let deepHd     = 0;  // H4+ headings, silently ignored by the parser
-
-  let cardSeq = 0;
 
   function saveCard() {
     if (!card) return;
-    const back = backBuf.join('\n').trim();
-    if (back) {
+    const hasSep = card.sep !== -1;
+    const front  = extractMedia(hasSep ? card.items.slice(0, card.sep) : [], 'front');
+    const back   = extractMedia(hasSep ? card.items.slice(card.sep) : card.items, 'back');
+    if (back.text || back.media) {
       // _id is a stable integer identity used for missedCards lookup (avoids reference equality issues)
-      section.cards.push({ _id: ++cardSeq, front: card, back, imageKey: cardImgKey });
+      section.cards.push({
+        _id:        ++cardSeq,
+        front:      [card.heading, front.text].filter(Boolean).join('\n\n'),
+        back:       back.text,
+        frontMedia: front.media,
+        backMedia:  back.media,
+      });
     } else {
       skipped++;
     }
-    card       = null;
-    backBuf    = [];
-    cardImgKey = null;
+    card = null;
   }
 
   function saveSection() {
@@ -502,49 +606,60 @@ function parseMD(text, filename) {
     section = null;
   }
 
-  for (const rawLine of lines) {
-    const line    = rawLine.trim();
-    const hMatch  = line.match(/^(#{1,3}) (.+)/);
-    const level   = hMatch ? hMatch[1].length : 0;
-    const heading = hMatch ? hMatch[2].trim() : '';
+  lines.forEach((raw, i) => {
+    if (fence[i]) { if (card) card.items.push(i); return; }
+    if (isDefLine[i]) return;
 
-    // Detect H4+ headings the parser cannot use — counted for a post-parse warning
-    if (!hMatch && /^#{4,} /.test(line)) { deepHd++; continue; }
+    const line   = raw.trim();
+    const hMatch = line.match(/^(#{1,3}) (.+)/);
+    if (!hMatch && /^#{4,} /.test(line)) { deepHd++; return; }   // reported after the parse
 
-    if (level === 1) {
-      if (!deckName) deckName = heading;
-    } else if (level === 2) {
-      saveSection();
-      section = { title: heading, cards: [] };
-    } else if (level === 3) {
-      if (!section) section = { title: 'Cards', cards: [] };
-      saveCard();
-      card       = heading;
-      backBuf    = [];
-      cardImgKey = null;
-    } else if (card !== null) {
-      if (!backBuf.length && !line) continue;  // skip leading blank lines
-      // Detect image reference comment — strip from back text, record key
-      const imgRef = rawLine.match(/<!--\s*img:([a-zA-Z_][\w-]*)\s*-->/);
-      if (imgRef) { cardImgKey = imgRef[1]; continue; }
-      backBuf.push(rawLine.trimEnd());
+    if (hMatch) {
+      const level   = hMatch[1].length;
+      const heading = hMatch[2].trim();
+      if (level === 1) {
+        if (!deckName) deckName = heading;
+      } else if (level === 2) {
+        saveSection();
+        section = { title: heading, cards: [] };
+      } else {
+        if (!section) section = { title: 'Cards', cards: [] };
+        saveCard();
+        card = { heading, items: [], sep: -1 };
+      }
+    } else if (card) {
+      if (card.sep === -1 && SEPARATOR_RE.test(raw)) { card.sep = card.items.length; return; }
+      card.items.push(i);
     }
-  }
-
+  });
   saveSection();
 
-  if (skipped) {
-    alert(`${skipped} card${skipped !== 1 ? 's were' : ' was'} skipped (no answer text).`);
+  // ── Warnings, shown together after the parse ──
+  for (const [label, dest] of definitions) {
+    if (/^data:image\//i.test(dest) && !usedLabels.has(label)) {
+      warnings.push(`The image definition [${label}] is not used by any card.`);
+    }
+  }
+  if (oldFormat) {
+    warnings.unshift('This deck uses the old image format (<!-- img:key -->), which is no longer supported. Its images are not shown. Convert the images again with the Image → Markdown tool.');
   }
   if (deepHd) {
-    alert(`${deepHd} heading${deepHd !== 1 ? 's' : ''} used #### or deeper and were ignored.\n\nOnly # (deck), ## (section), and ### (card front) are supported.`);
+    warnings.unshift(`${deepHd} heading${deepHd !== 1 ? 's' : ''} used #### or deeper and ${deepHd !== 1 ? 'were' : 'was'} ignored. Only # (deck), ## (section), and ### (card front) are supported.`);
+  }
+  if (skipped) {
+    warnings.unshift(`${skipped} card${skipped !== 1 ? 's were' : ' was'} skipped (no answer).`);
+  }
+  if (warnings.length) {
+    const MAX = 10;
+    const shown = warnings.slice(0, MAX).map(w => '• ' + w);
+    if (warnings.length > MAX) shown.push(`… and ${warnings.length - MAX} more.`);
+    alert(shown.join('\n\n'));
   }
 
   return {
     filename,
-    name:     deckName || filename.replace(/\.[^.]+$/, ''),
-    sections,
-    images
+    name: deckName || filename.replace(/\.[^.]+$/, ''),
+    sections
   };
 }
 
@@ -726,8 +841,10 @@ function renderCard() {
   elProgPct.textContent     = `${Math.round(done / total * 100)} %`;
   elScoreLive.textContent   = `✓ ${hits}  ✗ ${misses}`;
 
-  const front = isReversed ? currentCard.back  : currentCard.front;
-  const back  = isReversed ? currentCard.front : currentCard.back;
+  const frontMedia = isReversed ? currentCard.backMedia  : currentCard.frontMedia;
+  const backMedia  = isReversed ? currentCard.frontMedia : currentCard.backMedia;
+  const front = faceText(isReversed ? currentCard.back  : currentCard.front, frontMedia);
+  const back  = faceText(isReversed ? currentCard.front : currentCard.back,  backMedia);
 
   setCardContent(elCardFront, front);
 
@@ -750,21 +867,58 @@ function renderCard() {
     setCardContent(elCardBack, back);
   }
 
-  // ── Image panel ──
-  const imgKey = currentCard.imageKey;
-  const imgSrc = imgKey && parsedDeck.images ? parsedDeck.images[imgKey] : null;
-  if (imgSrc) {
-    elImage.src = imgSrc;
-    elImagePanel.style.display = '';
+  updateMediaPanel();
+}
+
+// ── Media panel ────────────────────────────────────────────────
+// The panel below the answer buttons shows the image or diagram of the side that is visible:
+// the front media before the flip, the back media after it. It is hidden if that side has none.
+// In reverse mode the sides swap, media included.
+const MEDIA_PLACEHOLDER = { image: 'see image', diagram: 'see diagram' };
+
+// The text for a card face. A side with media but no text gets a placeholder.
+function faceText(text, media) {
+  return text || (media ? MEDIA_PLACEHOLDER[media.type] : '');
+}
+
+function visibleMedia() {
+  const card = activeDeck[cardIndex];
+  if (!card) return null;
+  const showBack = isFlipped !== isReversed;   // the back of the card data is visible
+  return showBack ? card.backMedia : card.frontMedia;
+}
+
+function updateMediaPanel() {
+  const media = visibleMedia();
+  if (!media) { clearMediaPanel(); return; }
+  if (media.type === 'image') {
+    if (elImage.getAttribute('src') !== media.src) elImage.src = media.src;
+    elImage.alt = media.alt;
+    elImage.style.display = '';
+    elDiagram.style.display = 'none';
+    elDiagram.textContent = '';
   } else {
+    // Diagram source as text for now; Mermaid rendering follows in a later version
+    elDiagram.textContent = media.code;
+    elDiagram.style.display = '';
+    elImage.style.display = 'none';
     elImage.removeAttribute('src');
-    elImagePanel.style.display = 'none';
   }
+  elMediaPanel.style.display = '';
+}
+
+// removeAttribute('src') rather than src = '' avoids a request for the page URL
+function clearMediaPanel() {
+  elMediaPanel.style.display = 'none';
+  elImage.removeAttribute('src');
+  elImage.alt = '';
+  elDiagram.textContent = '';
 }
 
 function flipCard() {
   isFlipped = !isFlipped;
   elCard.classList.toggle('flipped', isFlipped);
+  updateMediaPanel();
   if (isFlipped) {
     btnShowTimeout = setTimeout(() => { btnShowTimeout = null; elAnswerBtns.classList.add('visible'); }, 250);
   } else {

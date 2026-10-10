@@ -1,5 +1,5 @@
 // ── State ──────────────────────────────────────────────────────
-// Each entry: { id, key, dataUri, filename, size, type }
+// Each entry: { id, key, alt, dataUri, filename, size, type }
 const entries = [];
 let nextId    = 1;
 
@@ -22,12 +22,18 @@ function formatBytes(n) {
   return (n/1024/1024).toFixed(2) + ' MB';
 }
 
+// Markdown matches reference labels without regard to capitals, so "Sun" and "sun" are the same key
 function allKeys() {
-  return entries.map(e => e.key);
+  return entries.map(e => e.key.toLowerCase());
 }
 
 function isDuplicateKey(key, excludeId) {
-  return entries.some(e => e.id !== excludeId && e.key === key);
+  return entries.some(e => e.id !== excludeId && e.key.toLowerCase() === key.toLowerCase());
+}
+
+// The Markdown that shows an image on a card
+function snippetFor(entry) {
+  return `![${entry.alt || entry.key}][${entry.key}]`;
 }
 
 // ── File reading ───────────────────────────────────────────────
@@ -63,6 +69,7 @@ function readFiles(files) {
       entries.push({
         id:       nextId++,
         key:      uniqueKey(filenameToKey(file.name)),
+        alt:      '',
         dataUri:  ev.target.result,
         filename: file.name,
         size:     file.size,
@@ -78,7 +85,7 @@ function readFiles(files) {
 function uniqueKey(base) {
   const existing = new Set(allKeys());  // snapshot once — avoid O(n²) allKeys() calls in loop
   let key = base, n = 2;
-  while (existing.has(key)) key = base + '_' + n++;
+  while (existing.has(key.toLowerCase())) key = base + '_' + n++;
   return key;
 }
 
@@ -101,9 +108,16 @@ function renderList() {
                  spellcheck="false" autocomplete="off"
                  data-id="${e.id}" aria-label="Image key name">
         </div>
-        <span class="key-warning" id="warn-${e.id}">Key must start with a letter or _ and contain only letters, digits, _ or -</span>
+        <span class="key-warning" id="warn-${e.id}">The key must start with a letter or _, contain only letters, digits, _ or -, and differ from the other keys (capitals do not count).</span>
+        <div class="key-row">
+          <span class="key-label">Alt</span>
+          <input class="alt-input key-input" type="text" value="${escAttr(escHtml(e.alt))}"
+                 placeholder="Short description of the image"
+                 spellcheck="true" autocomplete="off"
+                 data-alt-id="${e.id}" aria-label="Image description (alt text)">
+        </div>
         <div class="snippet-row">
-          <code class="snippet-code" id="snip-${e.id}">&lt;!-- img:${escHtml(e.key)} --&gt;</code>
+          <code class="snippet-code" id="snip-${e.id}">${escHtml(snippetFor(e))}</code>
           <button class="btn-copy-small" data-copy-snip="${e.id}">Copy</button>
         </div>
       </div>
@@ -114,7 +128,7 @@ function renderList() {
   `).join('');
 
   // Key input handlers
-  list.querySelectorAll('.key-input').forEach(input => {
+  list.querySelectorAll('.key-input:not(.alt-input)').forEach(input => {
     input.addEventListener('input', () => {
       const id  = +input.dataset.id;
       const key = input.value.trim();
@@ -130,9 +144,21 @@ function renderList() {
       if (valid) {
         entry.key = key;
         const snip = document.getElementById(`snip-${id}`);
-        if (snip) snip.textContent = `<!-- img:${key} -->`;
+        if (snip) snip.textContent = snippetFor(entry);
         renderOutput();
       }
+    });
+  });
+
+  // Alt text handlers
+  list.querySelectorAll('.alt-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const id    = +input.dataset.altId;
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+      entry.alt = input.value.replace(/[\[\]]/g, '').trim();   // brackets would break the Markdown
+      const snip = document.getElementById(`snip-${id}`);
+      if (snip) snip.textContent = snippetFor(entry);
     });
   });
 
@@ -153,7 +179,7 @@ function renderList() {
       const id    = +btn.dataset.copySnip;
       const entry = entries.find(e => e.id === id);
       if (!entry) return;
-      copyText(`<!-- img:${entry.key} -->`, btn);
+      copyText(snippetFor(entry), btn);
     });
   });
 }
@@ -167,13 +193,8 @@ function renderOutput() {
     return;
   }
 
-  const lines = ['---', 'images:'];
-  for (const e of entries) {
-    lines.push(`  ${e.key}: ${e.dataUri}`);
-  }
-  lines.push('---');
-
-  pre.textContent     = lines.join('\n');
+  // Reference definitions: "[key]: data:..." — one line per image
+  pre.textContent     = entries.map(e => `[${e.key}]: ${e.dataUri}`).join('\n');
   panel.style.display = '';
 }
 

@@ -36,16 +36,16 @@
     <!-- Output -->
     <div class="output-panel" id="output-panel" style="display:none">
       <div class="output-header">
-        <span class="output-title">Frontmatter block</span>
+        <span class="output-title">Image definitions</span>
       </div>
       <pre class="output-pre" id="output-pre"></pre>
       <p class="output-note">
-        Paste this block at the very top of your <code>.md</code> file, before the <code># Deck Name</code> line.
-        Then add <code>&lt;!-- img:key --&gt;</code> anywhere in a card's answer body to attach that image.
+        Paste these lines at the end of your <code>.md</code> file.
+        Then add the line <code>![description][key]</code> to the front or the back of a card. Each side of a card can show one image or one diagram.
       </p>
       <button class="btn-copy-big" id="btn-copy-all">
         <svg width="14" height="14" aria-hidden="true"><use href="img/icons.svg#icon-copy"/></svg>
-        <span>Copy frontmatter</span>
+        <span>Copy definitions</span>
       </button>
     </div>
 

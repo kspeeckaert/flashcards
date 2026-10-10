@@ -143,6 +143,7 @@
 
     .key-label {
       font-size: 12px; color: var(--ink-soft); flex-shrink: 0;
+      min-width: 2.2em;   /* "Key" and "Alt" inputs start at the same position */
     }
 
     .key-input {
