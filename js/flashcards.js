@@ -754,15 +754,18 @@ function fitText(el) {
   const h = el.clientHeight;
   if (el.scrollHeight <= h) return;
 
-  // Run the binary search on an off-screen clone so every write/read pair
-  // happens on a detached subtree, not the live layout — zero forced reflows
-  // on the real element, which stays compositor-friendly during animations.
+  // Run the binary search on an off-screen clone. The clone is a fixed-position element in
+  // the document, so each read still forces a layout, but only of the small clone; the live
+  // element gets a single write at the end.
+  // Use clientWidth, not getBoundingClientRect(): the bounding box includes CSS transforms,
+  // so during a flip or a swipe it is narrower than the real layout width.
   const naturalPx = parseFloat(getComputedStyle(el).fontSize);
-  const rect      = el.getBoundingClientRect();
+  const w         = el.clientWidth;
   const proxy     = el.cloneNode(true);
+  proxy.removeAttribute('id');   // no duplicate id in the document, not even for a moment
   proxy.style.cssText = [
     'position:fixed', 'top:-9999px', 'left:-9999px',
-    `width:${rect.width}px`, `height:${h}px`,
+    `width:${w}px`, `height:${h}px`,
     'visibility:hidden', 'pointer-events:none',
     'overflow:hidden', 'font-size:' + naturalPx + 'px'
   ].join(';');
@@ -778,8 +781,38 @@ function fitText(el) {
   }
 
   document.body.removeChild(proxy);
-  // Single write to the live element — no reflow triggered during animation.
+  // Single write to the live element
   if (hi < Math.floor(naturalPx)) el.style.fontSize = hi + 'px';
+}
+
+// Fit both card faces again when the card size changes (window resize, phone or iPad
+// rotation) or when a web font finishes loading (Lora, DM Sans, KaTeX fonts change the
+// text size). Only while the study screen is visible; one fit per animation frame.
+let _refitPending = false;
+
+function refitCardText() {
+  if (_refitPending) return;
+  _refitPending = true;
+  requestAnimationFrame(() => {
+    _refitPending = false;
+    if (!document.getElementById('screen-study').classList.contains('active')) return;
+    fitText(elCardFront);
+    fitText(elCardBack);
+  });
+}
+
+if (window.ResizeObserver) {
+  // The card has a fixed height and fills the width, so its size never depends on the text:
+  // fitting the text cannot trigger the observer again.
+  let lastWidth = 0;
+  new ResizeObserver(entries => {
+    const width = entries[0].contentRect.width;
+    if (width !== lastWidth) { lastWidth = width; refitCardText(); }
+  }).observe(elCard);
+}
+if (document.fonts) {
+  document.fonts.ready.then(refitCardText);
+  document.fonts.addEventListener('loadingdone', refitCardText);
 }
 
 // ── Section select screen ──────────────────────────────────────
