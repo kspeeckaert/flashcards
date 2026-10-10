@@ -16,16 +16,65 @@ function loadKaTeX(cb) {
     _katexQueue = [];
   }
 
+  // A failed load drops the queued callbacks (math stays as text) and allows a new attempt
+  function onError(ev) {
+    console.error('KaTeX could not be loaded:', ev.target.src);
+    _katexState = 'idle';
+    _katexQueue = [];
+  }
+
   // Load katex.min.js first, then auto-render (depends on katex)
   const s1 = document.createElement('script');
   s1.src = 'vendor/katex/katex.min.js';
+  s1.onerror = onError;
   s1.onload = () => {
     const s2 = document.createElement('script');
     s2.src = 'vendor/katex/contrib/auto-render.min.js';
+    s2.onerror = onError;
     s2.onload = onReady;
     document.head.appendChild(s2);
   };
   document.head.appendChild(s1);
+}
+
+// ── Mermaid lazy loader ────────────────────────────────────────
+// Mermaid (~5.5 MB) is only loaded the first time a diagram must show.
+// Returns a promise for the configured global `mermaid` object.
+let _mermaidPromise = null;
+
+function loadMermaid() {
+  if (!_mermaidPromise) {
+    _mermaidPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'vendor/mermaid/mermaid.min.js';
+      s.onload  = () => resolve();
+      s.onerror = () => reject(new Error('Mermaid could not be loaded'));
+      document.head.appendChild(s);
+    }).then(() => {
+      // Colors and font come from the CSS variables, so diagrams match the app
+      const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',        // Mermaid sanitizes labels; no click handlers or HTML from the deck
+        suppressErrorRendering: true,   // throw on a syntax error instead of inserting an error diagram
+        theme: 'base',
+        themeVariables: {
+          fontFamily:         css('--font-ui'),
+          fontSize:           '14px',
+          background:         css('--surface'),
+          primaryColor:       css('--accent-soft'),
+          primaryBorderColor: css('--accent'),
+          primaryTextColor:   css('--ink'),
+          secondaryColor:     css('--hit-soft'),
+          tertiaryColor:      css('--bg'),
+          lineColor:          css('--ink-soft'),
+        },
+      });
+      return mermaid;
+    });
+    _mermaidPromise.catch(() => { _mermaidPromise = null; });   // allow a new attempt later
+  }
+  return _mermaidPromise;
 }
 
 // ── marked config ──────────────────────────────────────────────
@@ -888,7 +937,14 @@ function visibleMedia() {
   return showBack ? card.backMedia : card.frontMedia;
 }
 
+// mediaToken changes on each panel update, so a diagram that finishes drawing late
+// is not shown on a card or side that is no longer visible.
+let mediaToken = 0;
+let diagramSeq = 0;
+const diagramSvgCache = new Map();   // Mermaid source → SVG markup (undo, reverse, study again)
+
 function updateMediaPanel() {
+  const token = ++mediaToken;
   const media = visibleMedia();
   if (!media) { clearMediaPanel(); return; }
   if (media.type === 'image') {
@@ -898,17 +954,42 @@ function updateMediaPanel() {
     elDiagram.style.display = 'none';
     elDiagram.textContent = '';
   } else {
-    // Diagram source as text for now; Mermaid rendering follows in a later version
-    elDiagram.textContent = media.code;
-    elDiagram.style.display = '';
     elImage.style.display = 'none';
     elImage.removeAttribute('src');
+    elDiagram.style.display = '';
+    showDiagram(media.code, token);
   }
   elMediaPanel.style.display = '';
 }
 
+// The SVG from Mermaid is inserted as it is. A second pass through DOMPurify would remove
+// parts of it (for example foreignObject labels); securityLevel 'strict' sanitizes the labels.
+function showDiagram(code, token) {
+  const cached = diagramSvgCache.get(code);
+  if (cached) { elDiagram.innerHTML = cached; return; }
+
+  elDiagram.innerHTML = '<p class="diagram-status">Drawing the diagram…</p>';
+  loadMermaid()
+    .then(m => m.render(`mermaid-${++diagramSeq}`, code))
+    .then(({ svg }) => {
+      diagramSvgCache.set(code, svg);
+      if (token === mediaToken) elDiagram.innerHTML = svg;
+    })
+    .catch(err => {
+      console.error('Mermaid could not draw the diagram:', err);
+      if (token !== mediaToken) return;
+      const msg = document.createElement('p');
+      msg.className   = 'diagram-status error';
+      msg.textContent = 'This diagram has an error. Its source:';
+      const pre = document.createElement('pre');
+      pre.textContent = code;
+      elDiagram.replaceChildren(msg, pre);
+    });
+}
+
 // removeAttribute('src') rather than src = '' avoids a request for the page URL
 function clearMediaPanel() {
+  mediaToken++;
   elMediaPanel.style.display = 'none';
   elImage.removeAttribute('src');
   elImage.alt = '';

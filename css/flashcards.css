@@ -548,18 +548,31 @@
       border-radius: 10px;
       box-shadow: var(--shadow);
     }
-    /* Diagram source, shown as text until Mermaid rendering is added */
+    /* Mermaid diagram: the SVG scales down to the panel width, never up */
     #card-diagram {
-      max-width: 100%;
-      overflow-x: auto;
-      margin: 0;
-      padding: 14px 16px;
+      width: 100%;
+      padding: 16px;
       background: var(--surface);
       border-radius: 10px;
       box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+    #card-diagram svg {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+    #card-diagram .diagram-status {
+      font-size: 13px; color: var(--ink-soft);
+      text-align: center;
+    }
+    #card-diagram .diagram-status.error { color: var(--miss); text-align: left; margin-bottom: 8px; }
+    #card-diagram pre {
+      margin: 0;
       font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
       color: var(--ink-soft);
-      text-align: left;
+      white-space: pre;
     }
 
     /* ── Swipe overlay ────────────────────────────────── */
