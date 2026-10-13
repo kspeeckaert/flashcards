@@ -35,7 +35,7 @@ Saved decks stay on one device and in one browser. They do not synchronize. Keep
 
 | Action | Input |
 |---|---|
-| Show the answer | Click or tap the card, or press Space. If the card has the keyboard focus, Enter also works. |
+| Show the answer | Click or tap the card, or press Space, the Up arrow, or the Down arrow. If the card has the keyboard focus, Enter also works. |
 | Mark as correct | Press the Right arrow, swipe right, or click "Got it" |
 | Mark as incorrect | Press the Left arrow, swipe left, or click "Miss" |
 | Undo the last answer | Click "Undo" (top left). After the last card, click "Undo last answer". |

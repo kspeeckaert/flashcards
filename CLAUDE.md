@@ -261,7 +261,7 @@ The media panel (`#card-media-panel`) sits **below** `.answer-btns` in the DOM, 
 
 ### Accessibility
 
-- The card is `role="button"` with `tabindex="0"`. Enter (when the card has focus) and Space flip it. `startStudy()` moves the focus to the card.
+- The card is `role="button"` with `tabindex="0"`. Enter (when the card has focus), Space, the Up arrow, and the Down arrow flip it. The arrow keys flip the card also when a button has the focus, the same as Left and Right always answer. `startStudy()` moves the focus to the card.
 - `updateFaceVisibility()` sets `aria-hidden` on the face that is not visible, so screen readers cannot read the answer before the flip.
 - `setAnswerButtonsVisible()` sets `inert` on `.answer-btns` while they are hidden, so Tab cannot reach "Got it" or "Miss" before the flip.
 - The shuffle, reverse, and save toggles are `<button role="switch">` elements. Always change them with `setSwitch(id, on)`, which updates `aria-checked` and the knob class together. The save switch gets the `disabled` attribute when the deck is saved or storage is not available.

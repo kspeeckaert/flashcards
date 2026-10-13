@@ -1291,7 +1291,7 @@ document.addEventListener('keydown', e => {
   // Space and Enter on a focused button (Undo, Exit, Miss, Got it) keep their normal action
   const onControl = e.target.closest && e.target.closest('button, a, input, select, textarea');
   if ((e.code === 'Space' || e.code === 'Enter') && onControl) return;
-  if      (e.code === 'Space' || (e.code === 'Enter' && e.target === elCard)) { e.preventDefault(); flipCard(); }
+  if      (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown' || (e.code === 'Enter' && e.target === elCard)) { e.preventDefault(); flipCard(); }
   else if (e.code === 'ArrowRight') { e.preventDefault(); if (isFlipped) commitAnswer(true); }
   else if (e.code === 'ArrowLeft')  { e.preventDefault(); if (isFlipped) commitAnswer(false); }
 });
